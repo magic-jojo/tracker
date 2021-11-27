@@ -1,0 +1,31 @@
+DROP TABLE IF EXISTS users CASCADE;
+CREATE TABLE users (
+	-- basic avi controls
+	avid UUID PRIMARY KEY,
+	locked BOOLEAN NOT NULL DEFAULT FALSE,
+	tracking BOOLEAN NOT NULL DEFAULT FALSE,
+	lockout BOOLEAN NOT NULL DEFAULT FALSE,
+	-- configure & record travel time
+	-- when created, travel time has already expired
+	travel INTEGER NOT NULL DEFAULT 0,
+	recover INTEGER NOT NULL DEFAULT 0,
+	expires TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT now(),
+	recovers TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT now(),
+	home VARCHAR(1024)
+);
+
+DROP TABLE IF EXISTS owners;
+CREATE TABLE owners (
+	avid UUID REFERENCES users(avid),
+	owner UUID NOT NULL
+);
+
+DROP TABLE IF EXISTS locations;
+CREATE TABLE locations (
+	avid UUID REFERENCES users(avid),
+	location TEXT NOT NULL,
+	dwell		INTEGER NOT NULL DEFAULT 0,
+	per			INTEGER NOT NULL DEFAULT 0,
+	expires		TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT now(),
+	recovers	TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT now()
+);
