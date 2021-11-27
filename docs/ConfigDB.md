@@ -1,11 +1,20 @@
-The configuration database is external to SL because SL provides SHIT for storage tools.
+# Magic Tracker Configuration Database #
+
+The configuration database is external to SL because SL provides _shit_ for storage tools.
 I've tried Experience and key-value pairs, even switched my account (Jojo) so I could create
 an experience, and I only ever get error messages from the server, so fuck that.
+
+## Architectural Notes ##
 
 We'll make a simple flask gateway to a PgSQL database to store configurations in.  We 
 can run this on a cloud account if it ever becomes a profitable.
 
+### Avatar IDs  ###
+
 The database requests are all keyed by avatar id, the only "personal" data stored.
+Avatar IDs for owners are also stored.
+
+### Locations ###
 
 Locations are simply Region Names, as returned by llGetRegionName().
 
@@ -22,6 +31,7 @@ The Home position may include region-local coordinates as well, from this functi
 	    return (globe + "/" + llEscapeURL(region) +"/" + posx + "/" + posy + "/" + posz);
 	}
 
+Searching for a location being removed in this is simple, as the home region name is a proper subset of the SLURL.  If the entire region name matches, it is safe to assume the region is a match.  This isn't strictly true, but should suffice for keeping cows safe.
 
 ## GetConfiguration(avid) ##
 
