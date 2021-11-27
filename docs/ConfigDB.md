@@ -118,13 +118,19 @@ The primary table holds all the singular configuration items:
 Data items that allow multiples are relational and nullable.
 The tracker code should treat "no owners" as unowned.
 
-	CREATE TABLE locations (
-		avid UUID REFERENCES users(avid),
-		location TEXT
-	);
-
 	CREATE TABLE owners (
 		avid UUID REFERENCES users(avid),
 		owner UUID
+	);
+
+For the locations table, we add an optional time limit per region.
+We can use the travel timer to timeout a stay in this region as well.
+A timelimit of 0 means 'no time limit,' of course.
+
+
+	CREATE TABLE locations (
+		avid UUID REFERENCES users(avid),
+		location TEXT,
+		timelimit INTEGER DEFAULT 0
 	);
 
