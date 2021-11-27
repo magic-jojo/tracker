@@ -105,7 +105,7 @@ Request travel time if available.
 
 The primary table holds all the singular configuration items:
 
-	CREATE TABLE magicUsers (
+	CREATE TABLE users (
 		avid UUID PRIMARY KEY,
 		locked BOOLEAN NOT NULL,
 		tracking BOOLEAN NOT NULL,
@@ -118,17 +118,17 @@ The primary table holds all the singular configuration items:
 Data items that allow multiples are relational and nullable.
 The tracker code should treat "no owners" as unowned.
 
-	CREATE TABLE magicLocations (
+	CREATE TABLE locations (
 		avid UUID PRIMARY KEY,
 		location TEXT,
-		CONSTRAINT fk_avid FOREIGN KEY(avid) REFERENCES magicUsers(avid)
+		CONSTRAINT fk_avid FOREIGN KEY(avid) REFERENCES users(avid)
 		ON DELETE CASCADE
 	);
 
-	CREATE TABLE magicOwners (
+	CREATE TABLE owners (
 		avid UUID PRIMARY KEY,
 		owner UUID,
-		CONSTRAINT fk_avid FOREIGN KEY(avid) REFERENCES magicUsers(avid)
+		CONSTRAINT fk_avid FOREIGN KEY(avid) REFERENCES users(avid)
 		ON DELETE CASCADE
 	);
 
