@@ -120,15 +120,23 @@ Request travel time if available.
 
 The return value indicates if travel time is available when the call completes.
 
-### CanTravel(avid, location) ###
+### Arrive(avid, location) ###
 
 Location is the region name.
 
-This is the basic check if the avi can travel to the location they just landed in.
-The return value may also be a time limit remaining in this sim, or on travel time.
-Sim time limits override and use travel time, but the cows will never figure this out.
+This is the basic check if the avi is allowed the location they just landed in.
+If the return value is False, the avi should be returned home ASAP.
+Sim time limits override and use travel time, but the cows will never figure this out.  (If you request travel, then jump to a time-limited sim, both timers are running simultaneously.)
 
-	If location exists in locations return True
+	If location exists in locations:
+		If dwell is 0, return True
+		else If expires has NOT passed, return True
+		else if recovers has passed
+			-- Start the sim timer
+			expires = now() + dwell minutes
+			recovers = now() + per days
+			return True
+		else return False
 	else If users(expires) is not NULL and has NOT passed
 	    return True
 	else return False (unknown location, no travel time)
