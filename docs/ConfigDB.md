@@ -119,16 +119,12 @@ Data items that allow multiples are relational and nullable.
 The tracker code should treat "no owners" as unowned.
 
 	CREATE TABLE locations (
-		avid UUID PRIMARY KEY,
-		location TEXT,
-		CONSTRAINT fk_avid FOREIGN KEY(avid) REFERENCES users(avid)
-		ON DELETE CASCADE
+		avid UUID REFERENCES users(avid),
+		location TEXT
 	);
 
 	CREATE TABLE owners (
-		avid UUID PRIMARY KEY,
-		owner UUID,
-		CONSTRAINT fk_avid FOREIGN KEY(avid) REFERENCES users(avid)
-		ON DELETE CASCADE
+		avid UUID REFERENCES users(avid),
+		owner UUID
 	);
 
