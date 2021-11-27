@@ -45,6 +45,8 @@ The entire configuration includes:
 * Locked
 * Tracking
 * Lockout
+* Travel Time
+* Travel Recovery
 * Home
 * Locations
 * Owners
@@ -94,3 +96,39 @@ Old or invalid locations are not detected.
 
 Remove the location from the Locations list.
 If it happens to be the Home location, unset Home as well.
+
+## Travel(avid) ##
+
+Request travel time if available.
+
+# Schema #
+
+The primary table holds all the singular configuration items:
+
+	CREATE TABLE magicUsers (
+		avid UUID PRIMARY KEY,
+		locked BOOLEAN NOT NULL,
+		tracking BOOLEAN NOT NULL,
+		lockout BOOLEAN NOT NULL,
+		travelTime INTEGER,
+		travelRecovery INTEGER,
+		home VARCHAR(1024)
+	);
+
+Data items that allow multiples are relational and nullable.
+The tracker code should treat "no owners" as unowned.
+
+	CREATE TABLE magicLocations (
+		avid UUID PRIMARY KEY,
+		location TEXT,
+		CONSTRAINT fk_avid FOREIGN KEY(avid) REFERENCES magicUsers(avid)
+		ON DELETE CASCADE
+	);
+
+	CREATE TABLE magicOwners (
+		avid UUID PRIMARY KEY,
+		owner UUID,
+		CONSTRAINT fk_avid FOREIGN KEY(avid) REFERENCES magicUsers(avid)
+		ON DELETE CASCADE
+	);
+
