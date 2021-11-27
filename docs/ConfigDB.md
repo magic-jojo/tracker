@@ -31,7 +31,9 @@ The Home position may include region-local coordinates as well, from this functi
 	    return (globe + "/" + llEscapeURL(region) +"/" + posx + "/" + posy + "/" + posz);
 	}
 
-Searching for a location being removed in this is simple, as the home region name is a proper subset of the SLURL.  If the entire region name matches, it is safe to assume the region is a match.  This isn't strictly true, but should suffice for keeping cows safe.
+Searching for a location being removed in this is simple, as the home region name is a proper subset of the SLURL.
+If the entire region name matches (being careful about URL encoding of spaces etc), it is safe to assume the region is a match.
+This isn't strictly true, but should suffice for keeping cows safe.
 
 # Database API #
 
