@@ -80,7 +80,7 @@ def lockout(avid, state=True):
 @app.route('/travel/<avid>', methods = ['POST'])
 @app.route('/travel/<avid>/<away>', methods = ['POST'])
 @app.route('/travel/<avid>/<away>/<recover>', methods = ['POST'])
-def locktravelout(avid, away=0, recover=0):
+def travel(avid, away=0, recover=0):
   app.logger.info(f"travel({avid}, {away}, {recover})")
   print(f"travel({avid}, {away}, {recover})")
 
@@ -102,6 +102,40 @@ def locktravelout(avid, away=0, recover=0):
         return {avid: [tt, rt]}
   except Exception as e:
     print(f"Sharks! {e}") 
+    return str(e), 500
+
+
+@app.route('/addowner/<avid>/<owner>', methods = ['POST'])
+def addowner(avid, owner):
+  app.logger.info(f"addowner({avid}, {owner})")
+  print(f"addowner({avid}, {owner})")
+
+  try:
+    with connect(dbname='tracker', user='jojo') as conn:
+      with conn.cursor() as cursor:
+        cursor.execute(
+          'INSERT INTO owners (avid, owner) VALUES (%s, %s) ON CONFLICT DO NOTHING', 
+          [avid, owner])
+        return {avid: owner}
+  except Exception as e:
+    print(f"Minnows! {e}") 
+    return str(e), 500
+
+
+@app.route('/delowner/<avid>/<owner>', methods = ['POST'])
+def delowner(avid, owner):
+  app.logger.info(f"delowner({avid}, {owner})")
+  print(f"delowner({avid}, {owner})")
+
+  try:
+    with connect(dbname='tracker', user='jojo') as conn:
+      with conn.cursor() as cursor:
+        cursor.execute(
+          'DELETE FROM owners WHERE avid = %s AND owner = %s', 
+          [avid, owner])
+        return {avid: owner}
+  except Exception as e:
+    print(f"Minnows! {e}") 
     return str(e), 500
 
 
