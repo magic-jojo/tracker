@@ -128,21 +128,22 @@ This is the basic check if the avi is allowed the location they just landed in.
 If the return value is False, the avi should be returned home ASAP.
 Sim time limits override and use travel time, but the cows will never figure this out.  (If you request travel, then jump to a time-limited sim, both timers are running simultaneously.)
 
-	If location exists in locations:
-		If dwell is 0, return True
-		else If expires has NOT passed, return True
-		else if recovers has passed
+	if location exists in locations:
+		if location(dwell) is 0, return True
+		else If location(expires) has NOT passed, return True
+		else if location(recovers) has passed
 			-- Start the sim timer
-			expires = now() + dwell minutes
-			recovers = now() + per days
+			location(expires) = now() + dwell minutes
+			location(recovers) = now() + per days
 			return True
 		else return False
-	else If users(expires) is not NULL and has NOT passed
-	    return True
+	else If users(travel) is 0, return True
+	else if users(expires) has not passed, return True
 	else return False (unknown location, no travel time)
 
 # Schema #
 
+See sql/schema.sql for details
 The primary table holds all the singular configuration items:
 
 	CREATE TABLE users (
@@ -168,14 +169,15 @@ The tracker code should treat "no owners" as unowned.
 		owner 	UUID 	NOT NULL
 	);
 
-For the locations table, we add an optional time limit per region.
+For the locations table, we allow an optional time limit per region.
 We can use the travel timer to timeout a stay in this region as well.
 A timelimit of 0 means 'no time limit,' of course.
 
 	CREATE TABLE locations (
 		avid 		UUID 	REFERENCES users(avid),
 		location 	TEXT 	NOT NULL,
-		dwell		INTEGER NOT NULL DEFAULT 0,
+		dwell		INTEGER NOT NULL DEFAULT 0,		-- sim time, minutes
+		per		INTEGER NOT NULL DEFAULT 0,		-- per this many days
 		expires		TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT now(),
 		recovers	TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT now()
 	);
