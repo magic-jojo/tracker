@@ -76,6 +76,13 @@ Set the Track state unconditionally, returns the current Track state.
 
 Set the Lockout state unconditionally, returns the current Lockout state.
 
+### Travel(avid, away = 0, recover = 0)
+
+Set the allowed travel time for the wearer.
+If 0, travel is not allowed.
+Recover must be greater than or equal to away.
+If Recover is not specified, it is set to away.
+
 ### AddOwner(avid, ownerid) ###
 
 Add the avatar ownerid (deduped) to the owners list
@@ -177,7 +184,7 @@ A timelimit of 0 means 'no time limit,' of course.
 		avid 		UUID 	REFERENCES users(avid),
 		location 	TEXT 	NOT NULL,
 		dwell		INTEGER NOT NULL DEFAULT 0,		-- sim time, minutes
-		per		INTEGER NOT NULL DEFAULT 0,		-- per this many days
+		per		    INTEGER NOT NULL DEFAULT 0,		-- per this many days
 		expires		TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT now(),
 		recovers	TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT now()
 	);
