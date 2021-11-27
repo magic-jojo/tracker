@@ -169,11 +169,15 @@ The primary table holds all the singular configuration items:
 	);
 
 Data items that allow multiples are relational and allow 0 entries.
+
+We de-dupe owners for each wearer with a unique constraint, the insert
+code has to be able to handle this.
 The tracker code should treat "no owners" as unowned.
 
 	CREATE TABLE owners (
 		avid 	UUID 	REFERENCES users(avid),
-		owner 	UUID 	NOT NULL
+		owner 	UUID 	NOT NULL,
+		UNIQUE (avid, owner)
 	);
 
 For the locations table, we allow an optional time limit per region.
