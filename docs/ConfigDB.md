@@ -37,7 +37,8 @@ This isn't strictly true, but should suffice for keeping cows safe.
 
 # Database API #
 
-## GetConfiguration(avid) ##
+## Configuration API ##
+### GetConfiguration(avid) ###
 
 Return the entire configuration for the specified avatar.
 This is expected to be called on attach, for instance.
@@ -63,76 +64,107 @@ All other settings are empty.
 
 The first few transactions are simple.
 
-## Lock(avid, state=True) ##
+### Lock(avid, state=True) ###
 
 Set the Lock state unconditionally.
 
-## Track(avid, state=True) ##
+### Track(avid, state=True) ###
 
 Set the Track state unconditionally
 
-## Lockout(avid, State=True) ##
+### Lockout(avid, State=True) ###
 
 Set the Lockout state unconditionally
 
-## AddOwner(avid, ownerid) ##
+### AddOwner(avid, ownerid) ###
 
 Add the avatar ownerid to the owners list
 
-## DelOwner(avid, ownerid) ##
+### DelOwner(avid, ownerid) ###
 
 Remove the avatar ownerid from the owners list
 
-## SetHome(avid, location) ##
+### SetHome(avid, location) ###
 
 Set the Home location unconditionally.
 This also adds the location to the Locations list.
 
-## AddLoc(avid, location) ##
+### AddLoc(avid, location, limit=0) ###
 
 Add the location to the Locations list unconditionally.
 Locations will be de-duplicated by spelling.
 Old or invalid locations are not detected.
 
-## DelLoc(avid, location) ##
+### DelLoc(avid, location) ###
 
 Remove the location from the Locations list.
 If it happens to be the Home location, unset Home as well.
 
-## Travel(avid) ##
+## Operational Requests ##
+
+These APIs will be called during normal operation of the tracker
+
+### Travel(avid) ###
 
 Request travel time if available.
+
+	If travelExpires is not NULL and has not passed, return True.
+	If (expires or has passed, AND recovers or has passed)
+	    set expires to 'now' plus travel minutes
+	    set recovers to 'now' plus travel + recover minutes
+	    return True
+	else
+	    return False (travel request failed)
+
+The return value indicates if travel time is available when the call completes.
+
+### CanTravel(avid, location) ###
+
+Location is the region name.
+
+This is the basic check if the avi can travel to the location they just landed in.
+The return value may also be a time limit remaining in this sim, or on travel time.
+Sim time limits override and use travel time, but the cows will never figure this out.
+
+	If location exists in locations return True
+	else If users(expires) is not NULL and has NOT passed
+	    return True
+	else return False (unknown location, no travel time)
 
 # Schema #
 
 The primary table holds all the singular configuration items:
 
 	CREATE TABLE users (
+		-- basic avi controls
 		avid UUID PRIMARY KEY,
-		locked BOOLEAN NOT NULL,
-		tracking BOOLEAN NOT NULL,
-		lockout BOOLEAN NOT NULL,
-		travelTime INTEGER,
-		travelRecovery INTEGER,
+		locked BOOLEAN NOT NULL DEFAULT FALSE,
+		tracking BOOLEAN NOT NULL DEFAULT FALSE,
+		lockout BOOLEAN NOT NULL DEFAULT FALSE,
+		-- configure & record travel time
+		-- when created, travel time has already expired
+		travel INTEGER NOT NULL DEFAULT 0,
+		recover INTEGER NOT NULL DEFAULT 0,
+		expires DATETIME WITHOUT TIMEZONE NOT NULL DEFAULT now(),
+		recovers DATETIME WITHOUT TIMEZONE NOT NULL DEFAULT now(),
 		home VARCHAR(1024)
 	);
 
-Data items that allow multiples are relational and nullable.
+Data items that allow multiples are relational and allow 0 entries.
 The tracker code should treat "no owners" as unowned.
 
 	CREATE TABLE owners (
 		avid UUID REFERENCES users(avid),
-		owner UUID
+		owner UUID NOT NULL
 	);
 
 For the locations table, we add an optional time limit per region.
 We can use the travel timer to timeout a stay in this region as well.
 A timelimit of 0 means 'no time limit,' of course.
 
-
 	CREATE TABLE locations (
 		avid UUID REFERENCES users(avid),
-		location TEXT,
-		timelimit INTEGER DEFAULT 0
+		location TEXT NOT NULL
 	);
 
+Note that a tracker that is locked and has no locations will repeatedly TP the wearer to their SL home location.
