@@ -1,0 +1,19 @@
+[Unit]
+Description=tracker-app
+
+[Service]
+ExecStart = /usr/bin/python3 /usr/bin/gunicorn3 \
+	-n tracker-app wsgi:app -b 0.0.0.0:5559 \
+	--access-logfile /var/log/tracker/access.log \
+	--error-logfile /var/log/tracker/error.log
+#Type=forking
+User=jojo
+Group=magic
+Restart=always
+StandardOutput=syslog
+StandardError=syslog
+WorkingDirectory = /home/jojo/src
+
+[Install]
+WantedBy=multi-user.target
+
