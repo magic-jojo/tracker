@@ -158,18 +158,16 @@ This is the basic check if the avi is allowed the location they just landed in.
 If the return value is False, the avi should be returned home ASAP.
 Sim time limits override and use travel time, but the cows will never figure this out.  (If you request travel, then jump to a time-limited sim, both timers are running simultaneously.)
 
-	if location exists in locations:
-		if location(dwell) is 0, return True
-		else If location(expires) has NOT passed, return True
-		else if location(recovers) has passed
-			-- Start the sim timer
-			location(expires) = now() + dwell minutes
-			location(recovers) = now() + per days
-			return True
-		else return False
-	else If users(travel) is 0, return True
-	else if users(expires) has not passed, return True
-	else return False (unknown location, no travel time)
+	if NOT locked, return True
+	if users(expires) has not passed, return True
+	if location does NOT exist in locations, return False
+	if location(dwell) is 0, return True
+	if location(expires) has NOT passed, return True
+	if location(recovers) has NOT passed, return False
+	-- Start the sim timer
+	location(expires) = now() + dwell minutes
+	location(recovers) = now() + per hours
+	return True
 
 Done
 
