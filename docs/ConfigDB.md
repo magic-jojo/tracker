@@ -76,7 +76,7 @@ Set the Track state unconditionally, returns the current Track state.
 
 Set the Lockout state unconditionally, returns the current Lockout state.
 
-### Travel(avid, away = 0, recover = 0)
+### SetTravel(avid, away = 0, recover = 0)
 
 Set the allowed travel time for the wearer.
 If 0, travel is not allowed.
@@ -120,8 +120,8 @@ These APIs will be called during normal operation of the tracker
 
 Request travel time if available.
 
-	If travelExpires is not NULL and has not passed, return True.
-	If (expires or has passed, AND recovers or has passed)
+	If expires has not passed, return True.
+	If (expires has passed, AND recovers has passed)
 	    set expires to 'now' plus travel minutes
 	    set recovers to 'now' plus travel + recover minutes
 	    return True
