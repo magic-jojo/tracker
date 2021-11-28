@@ -68,13 +68,19 @@ The first few transactions are simple.
 
 Set the Lock state unconditionally. returns the current Lock state.
 
+Done
+
 ### Track(avid, state=True) ###
 
 Set the Track state unconditionally, returns the current Track state.
 
+Done
+
 ### Lockout(avid, State=True) ###
 
 Set the Lockout state unconditionally, returns the current Lockout state.
+
+Done
 
 ### SetTravel(avid, away = 0, recover = 0)
 
@@ -83,13 +89,19 @@ If 0, travel is not allowed.
 Recover must be greater than or equal to away.
 If Recover is not specified, it is set to away.
 
+Done
+
 ### AddOwner(avid, ownerid) ###
 
 Add the avatar ownerid (deduped) to the owners list
 
+Done
+
 ### DelOwner(avid, ownerid) ###
 
 Remove the avatar ownerid from the owners list if exists
+
+Done
 
 ### SetHome(avid, location) ###
 
@@ -99,6 +111,8 @@ This also adds the location region to the Locations list with unlimited dwell ti
 Note that the home location is URL-encoded, while Locations are not, so care must be
 taken when adding the home.
 
+Done
+
 ### AddLoc(avid, location, dwell=0, per=0) ###
 
 Add the location to the Locations list unconditionally.
@@ -107,10 +121,14 @@ Old or invalid locations are not detected.
 If specified, a maximum sim dwell time in minutes and 'per' value in days will be saved.
 The expected usage for these is roughly 'dwell' hours per day, week, or month.
 
+Done
+
 ### DelLoc(avid, location) ###
 
 Remove the location from the Locations list.
 If it happens to be the Home location, unset Home as well.
+
+Done
 
 ## Operational Requests ##
 
@@ -129,6 +147,8 @@ Request travel time if available.
 	    return False (travel request failed)
 
 The return value indicates if travel time is available when the call completes.
+
+Done
 
 ### Arrive(avid, location) ###
 
@@ -150,6 +170,8 @@ Sim time limits override and use travel time, but the cows will never figure thi
 	else If users(travel) is 0, return True
 	else if users(expires) has not passed, return True
 	else return False (unknown location, no travel time)
+
+Done
 
 # Schema #
 
