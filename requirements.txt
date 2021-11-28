@@ -1,0 +1,3 @@
+flask
+pendulum
+psycopg2
