@@ -5,28 +5,72 @@ from re import search
 from urllib.parse import unquote
 import pendulum
 
-#>>> from psycopg2 import connect
-#>>> with connect(dbname='tracker', user='jojo') as conn:
-#...  with conn.cursor() as cursor:
-#...   cursor.execute('select * from users where avid = %s', ['caf5386a-7dbe-488f-b194-5a7b681d9e9b',])
-#...   res = cursor.fetchone()
-#...   if res is None:
-#...    print("New user!")
-#...   else:
-#...    print(res)
-#... 
-#('caf5386a-7dbe-488f-b194-5a7b681d9e9b', False, False, False, 0, 0, datetime.datetime(2021, 11, 27, 1, 28, 48, 145014), datetime.datetime(2021, 11, 27, 1, 28, 48, 145014), None)
-
-
-# A quick sloppy converter for datetime to json
-def jsonconvert(o):
-    return o.__str__()
 
 # The Flask app:
 
 app = Flask(__name__)
 
 # Read-side API:
+
+@app.route('/arrive/<avid>/<landing>', methods = ['POST'])
+def arrive(avid, landing):
+  app.logger.info(f"arrive({avid}, {landing})")
+  print(f"arrive({avid}, {landing})")
+
+  # Be generous, don't penalize user for DB connect time, etc
+  now = pendulum.now()
+
+  try:
+    with connect(dbname='tracker', user='jojo') as conn:
+      with conn.cursor() as cursor:
+        cursor.execute('SELECT locked, expires FROM users WHERE avid = %s', [avid,])
+        row = cursor.fetchone()
+        locked = row[0]
+        if not locked:
+          print("arrived safely, not locked")
+          return {avid: True}
+        expires = pendulum.instance(row[1], 'local')
+        if now < expires:
+          print("arrived safely, in travel window")
+          return {avid: True}
+        # Is this an allowed location (and in time window?)
+        cursor.execute(
+          'SELECT dwell, per, expires, recovers FROM locations WHERE avid = %s AND location = %s',
+          [avid, landing])
+        row = cursor.fetchone()
+        print(row)
+        if row is None:
+          print("arrived in unregistered sim, bitch!")
+          return {avid: False}
+        # Are we allowed to be in this sim NOW?
+        dwell = int(row[0])
+        if dwell == 0:
+          print(f"Always allowed to be in {landing}")
+          return {avid: True}
+        expires = pendulum.instance(row[2], 'local')
+        if now < expires:
+          print(f"Allowed to be in {landing} until {expires}")
+          return {avid: True}
+        # Are we IN the recovery window?
+        recovers = pendulum.instance(row[3], 'local')
+        if now < recovers:
+          print(f"In recovery for {landing} until {recovers} biatch!")
+          return {avid:False}
+        # Recovery window has passed, open a new window
+        per = int(row[1])
+        expires = now.add(minutes = dwell)
+        recovers = now.add(minutes = dwell, hours=per)
+        print(f"Arrived for {dwell} minutes until {recovers}")
+        cursor.execute(
+          'UPDATE locations SET expires = %s, recovers = %s WHERE avid = %s AND location = %s',
+          [expires, recovers, avid, landing]
+        )
+
+        return {avid: False}
+  except Exception as e:
+    print(f"Cunt! {e}") 
+    return str(e), 500
+
 
 @app.route('/travel/<avid>', methods = ['POST'])
 def travel(avid, state=True):
@@ -184,6 +228,53 @@ def delowner(avid, owner):
     return str(e), 500
 
 
+@app.route('/addloc/<avid>/<location>', methods = ['POST'])
+@app.route('/addloc/<avid>/<location>/<dwell>', methods = ['POST'])
+@app.route('/addloc/<avid>/<location>/<dwell>/<per>', methods = ['POST'])
+def addloc(avid, location, dwell=0, per=0):
+  app.logger.info(f"addloc({avid}, {location}, {dwell}, {per})")
+  print(f"addloc({avid}, {location}, {dwell}, {per})")
+
+  dwell = int(dwell)
+  per = int(per)
+
+  # Fixup args a bit.  If a dwell was specified but no per, push the bitch
+  if dwell != 0 and per == 0:
+    per = dwell
+  
+  print(f"Adding/updating {location} to {dwell} mins per {per} hours")
+
+  try:
+    with connect(dbname='tracker', user='jojo') as conn:
+      with conn.cursor() as cursor:
+        cursor.execute('''
+          INSERT INTO locations (avid, location, dwell, per) VALUES (%s, %s, %s, %s)
+          ON CONFLICT (avid, location) DO UPDATE SET dwell = %s, per = %s''', 
+          [avid, location, dwell, per, dwell, per])
+          # [avid, location, dwell, per])
+        return {avid: location}
+  except Exception as e:
+    print(f"Guppies! {e}") 
+    return str(e), 500
+
+
+@app.route('/delloc/<avid>/<location>', methods = ['POST'])
+def delloc(avid, location):
+  app.logger.info(f"delloc({avid}, {location})")
+  print(f"delloc({avid}, {location})")
+
+  try:
+    with connect(dbname='tracker', user='jojo') as conn:
+      with conn.cursor() as cursor:
+        cursor.execute(
+          'DELETE FROM locations WHERE avid = %s AND location = %s', 
+          [avid, location])
+        return {avid: location}
+  except Exception as e:
+    print(f"Eeels! {e}") 
+    return str(e), 500
+
+
 @app.route('/sethome/<avid>/<region>/<x>/<y>/<z>', methods = ['POST'])
 def sethome(avid, region, x, y, z):
   home = f"{region}/{x}/{y}/{z}"
@@ -201,7 +292,7 @@ def sethome(avid, region, x, y, z):
         print(f"Home {home} region is {region}")
         cursor.execute(
           '''INSERT INTO locations (avid, location, dwell, per) VALUES (%s, %s, 0, 0)
-              ON CONFLICT (avid, location) DO UPDATE SET dwell = 0, per = 0 ''',
+              ON CONFLICT (avid, location) DO UPDATE SET dwell = 0, per = 0''',
               [avid, region]
         )
         return {avid: home}
