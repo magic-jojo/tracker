@@ -94,7 +94,10 @@ Remove the avatar ownerid from the owners list if exists
 ### SetHome(avid, location) ###
 
 Set the Home location unconditionally.
+Location is a SLURL.
 This also adds the location region to the Locations list with unlimited dwell time.
+Note that the home location is URL-encoded, while Locations are not, so care must be
+taken when adding the home.
 
 ### AddLoc(avid, location, dwell=0, per=0) ###
 
