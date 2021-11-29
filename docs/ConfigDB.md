@@ -62,25 +62,27 @@ If a configuration does not exist for the avatar, a default one will be construc
 
 All other settings are empty.
 
+Done + JSON
+
 The first few transactions are simple.
 
 ### Lock(avid, state=True) ###
 
 Set the Lock state unconditionally. returns the current Lock state.
 
-Done
+Done + JSON
 
 ### Track(avid, state=True) ###
 
 Set the Track state unconditionally, returns the current Track state.
 
-Done
+Done + JSON
 
 ### Lockout(avid, State=True) ###
 
 Set the Lockout state unconditionally, returns the current Lockout state.
 
-Done
+Done + JSON
 
 ### SetTravel(avid, away = 0, recover = 0)
 
@@ -89,19 +91,19 @@ If 0, travel is not allowed.
 Recover must be greater than or equal to away.
 If Recover is not specified, it is set to away.
 
-Done
+Done + JSON
 
 ### AddOwner(avid, ownerid) ###
 
 Add the avatar ownerid (deduped) to the owners list
 
-Done
+Done + JSON
 
 ### DelOwner(avid, ownerid) ###
 
 Remove the avatar ownerid from the owners list if exists
 
-Done
+Done + JSON
 
 ### SetHome(avid, location) ###
 
@@ -111,7 +113,7 @@ This also adds the location region to the Locations list with unlimited dwell ti
 Note that the home location is URL-encoded, while Locations are not, so care must be
 taken when adding the home.
 
-Done
+Done + JSON
 
 ### AddLoc(avid, location, dwell=0, per=0) ###
 
@@ -121,14 +123,14 @@ Old or invalid locations are not detected.
 If specified, a maximum sim dwell time in minutes and 'per' value in days will be saved.
 The expected usage for these is roughly 'dwell' hours per day, week, or month.
 
-Done
+Done + JSON
 
 ### DelLoc(avid, location) ###
 
 Remove the location from the Locations list.
 If it happens to be the Home location, unset Home as well.
 
-Done
+Done + JSON
 
 ## Operational Requests ##
 
@@ -148,7 +150,7 @@ Request travel time if available.
 
 The return value indicates if travel time is available when the call completes.
 
-Done
+Done + JSON
 
 ### Arrive(avid, location) ###
 
@@ -169,7 +171,7 @@ Sim time limits override and use travel time, but the cows will never figure thi
 	location(recovers) = now() + per hours
 	return True
 
-Done
+Done + JSON
 
 # Schema #
 
