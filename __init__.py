@@ -10,6 +10,106 @@ import pendulum
 
 app = Flask(__name__)
 
+# The JSON API
+# Basically, a call router for the URL API
+
+@app.route('/api/tracker/v1', methods = ['POST'])
+def api():
+  content = request.get_json()
+  app.logger.info(f"Tracker v1 API call: {content}")
+  print(f"Tracker v1 API call: {content}")
+
+  try:
+    # Route based on 'cmd'
+    if not 'cmd' in content:
+      return 'No command to execute', 501
+    if not 'avid' in content:
+      return 'Avatar ID not specified', 501
+
+    elif content['cmd'] == 'get':
+      return get(content['avid'])
+    
+    if content['cmd'] == 'arrive':
+      if not 'landing' in content:
+        return 'Landing point not specified', 501
+      ret = arrive(content['avid'], content['landing'])
+      print(f"arrive said: {ret}")
+      return ret
+
+    elif content['cmd'] == 'travel':
+      return travel(content['avid'])
+    
+    elif content['cmd'] == 'lock':
+      if 'state' in content:
+        return lock(content['avid'], content['state'])
+      else:
+        return lock(content['avid'])
+    
+    elif content['cmd'] == 'track':
+      if 'state' in content:
+        return track(content['avid'], content['state'])
+      else:
+        return track(content['avid'])
+    
+    elif content['cmd'] == 'lockout':
+      if 'state' in content:
+        return lockout(content['avid'], content['state'])
+      else:
+        return lockout(content['avid'])
+    
+    elif content['cmd'] == 'addowner':
+      if not 'owner' in content:
+        return 'Owner not specified', 501
+      else:
+        return addowner(content['avid'], content['owner'])
+    
+    elif content['cmd'] == 'delowner':
+      if not 'owner' in content:
+        return 'Owner not specified', 501
+      else:
+        return delowner(content['avid'], content['owner'])
+    
+    elif content['cmd'] == 'addloc':
+      if not 'location' in content:
+        return 'Location not specified', 501
+      if 'dwell' in content:
+        if 'per' in content:
+          return addloc(content['avid'], content['location'], content['dwell'], content['per'])
+        else:
+          return addloc(content['avid'], content['location'], content['dwell'])
+      else:
+        return addloc(content['avid'], content['location'])
+    
+    elif content['cmd'] == 'delloc':
+      if not 'location' in content:
+        return 'Location not specified', 501
+      else:
+        return delloc(content['avid'], content['location'])
+    
+    elif content['cmd'] == 'settravel':
+      # settravel(avid, away=0, recover=0)
+      if 'away' in content:
+        if 'recover' in content:
+          return settravel(content['avid'], content['away'], content['recover'])
+      else:
+        return addloc(content['avid'], content['away'])
+    
+    elif content['cmd'] == 'sethome':
+      # Somewhat different, we pass the home as a string
+      if not 'home' in content:
+        return 'Home not specified', 501
+      m = search('(.*)/(.*)/(.*)/(.*)', content['home'])
+      # sethome(avid, region, x, y, z)
+      return sethome(content['avid'], m.group(1), m.group(2), m.group(3), m.group(4))
+    
+    # We didn't understand the request, barf it back
+    return content, 501
+
+  except Exception as e:
+    print(f"Uh-oh! {e}") 
+    return str(e), 500
+
+
 # Read-side API:
 
 @app.route('/arrive/<avid>/<landing>', methods = ['POST'])
@@ -25,6 +125,8 @@ def arrive(avid, landing):
       with conn.cursor() as cursor:
         cursor.execute('SELECT locked, expires FROM users WHERE avid = %s', [avid,])
         row = cursor.fetchone()
+        if not row:
+          return f"Uknown avatar: {avid}", 501
         locked = row[0]
         if not locked:
           print("arrived safely, not locked")
@@ -65,8 +167,8 @@ def arrive(avid, landing):
           'UPDATE locations SET expires = %s, recovers = %s WHERE avid = %s AND location = %s',
           [expires, recovers, avid, landing]
         )
-
-        return {avid: False}
+        print(f"Opened visit time for {landing}")
+        return {avid: True}
   except Exception as e:
     print(f"Cunt! {e}") 
     return str(e), 500
@@ -289,10 +391,10 @@ def sethome(avid, region, x, y, z):
           [home, avid])
         # unencode the region for the Locations table, just in case
         region = unquote(region)
-        print(f"Home {home} region is {region}")
+        print(f"Home {home} region is {region} (fully enabled)")
         cursor.execute(
-          '''INSERT INTO locations (avid, location, dwell, per) VALUES (%s, %s, 0, 0)
-              ON CONFLICT (avid, location) DO UPDATE SET dwell = 0, per = 0''',
+          '''INSERT INTO locations (avid, location, dwell, per, expires, recovers) VALUES (%s, %s, 0, 0, now(), now())
+              ON CONFLICT (avid, location) DO UPDATE SET dwell = 0, per = 0, expires=now(), recovers=now()''',
               [avid, region]
         )
         return {avid: home}
@@ -372,6 +474,7 @@ def create(conn, avid):
 
 if __name__ == "__main__":
   try:
+    # app.config['SERVER_NAME'] = 'magic.softweyr.com'
     app.run()
   except Exception as e:
     print(f"{e}") 
