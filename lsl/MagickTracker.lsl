@@ -2,9 +2,14 @@
 // First various web communications req/resp pairs
 key configReq;
 key homeReq;  // Yup, got a real homeReq'er here
+key locReq;
 
 key tpReq;
 key regReq;
+
+// Contants.  ish.
+
+float tpGraceTime = 30.0;   // Seconds before you get the boot
 
 // The poor sap who has this locked to them
 key gWearer;
@@ -21,7 +26,7 @@ integer recover;
 
 // Menus.
 
-list MENU_WEARER_INIT = ["Set Home", "Add Loc", "Add Own"];
+list MENU_WEARER_INIT = ["Set Home", "Add Loc", "Add Own", "TP Home"];
 
 // communications channels
 
@@ -42,14 +47,17 @@ default
     {
         if (change & CHANGED_TELEPORT) //note that it's & and not &&... it's bitwise!
         {
-            //string region = llGetRegionName();
-            //llOwnerSay("Arrived in " + region);
-
-            // Ask the server if we're allowed to TP here
-            tpReq = llHTTPRequest(
-                 "http://magic.softweyr.com/api/tracker/v1",
-                [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
-                "{\"avid\":\"" + (string)llGetOwner() + "\",\"cmd\":\"arrive\", \"landing\":\"" + llGetRegionName() + "\"}");
+            // Cancel any outstanding TP timer
+            llSetTimerEvent(0.0);
+            
+//            if (locked)
+//            {
+                // Ask the server if we're allowed to TP here
+                tpReq = llHTTPRequest(
+                    "http://magic.softweyr.com/api/tracker/v1",
+                    [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                    "{\"avid\":\"" + (string)llGetOwner() + "\",\"cmd\":\"arrive\", \"landing\":\"" + llGetRegionName() + "\"}");
+//            }
         }
     }
     
@@ -76,33 +84,38 @@ default
                 
                 // Get the global coordinates for where the wearer is right now.
                 // This requires getting the region global coords from the server.
-                regReq = llRequestSimulatorData(llGetRegionName(), DATA_SIM_POS);
+                //regReq = llRequestSimulatorData(llGetRegionName(), DATA_SIM_POS);
+                // NOT NEEDED!  As of RLVa 2.9.20, we have enhanced tpto...
+                
+                // Set home directly, then send to server as well
+                vector pos = llGetPos();
+                home = llGetRegionName() + "/" + 
+                    (string)((integer)pos.x) + "/" +
+                    (string)((integer)pos.y) + "/" + 
+                    (string)((integer)pos.z);
+                homeReq = llHTTPRequest(
+                    "http://magic.softweyr.com/api/tracker/v1",
+                    [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                    "{\"avid\":\"" + (string)gWearer + "\",\"cmd\":\"sethome\",\"home\":\"" + home + "\"}");
+                llOwnerSay("Set home to " + home);
+            }
+            else if (message == "TP Home")
+            {
+                llOwnerSay("@tpto:" + home + "=force");
+            }
+            else if (message =="Add Loc")
+            {
+                locReq = llHTTPRequest(
+                    "http://magic.softweyr.com/api/tracker/v1",
+                    [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                    "{\"avid\":\"" + (string)gWearer + "\",\"cmd\":\"addloc\",\"location\":\"" + llGetRegionName() + "\"}");
+                llOwnerSay(llGetRegionName() + " is now allowed");
             }
             
             llListenRemove(menuHand);
         }
     }
-    
-    dataserver(key qId, string data)
-    {
-        if (qId == regReq)
-        {
-            // Data is the region position, add the local position
-            vector globalPos = (vector)data + llGetPos();
-            // Send a "set home" request.
-            home = llEscapeURL(llGetRegionName()) + "/" + 
-                (string)((integer)globalPos.x) + "/" +
-                (string)((integer)globalPos.y) + "/" + 
-                (string)((integer)globalPos.z);
-            homeReq = llHTTPRequest(
-                "http://magic.softweyr.com/api/tracker/v1",
-                [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
-                "{\"avid\":\"" + (string)gWearer + "\",\"cmd\":\"sethome\",\"home\":\"" + home + "\"}");
-            llOwnerSay("Set home to " + home);
-            //llOwnerSay("@tpto:" + home + "=force");
-        }
-    }
-    
+        
     touch_end(integer num)
     {
         gWearer = llDetectedKey(0);
@@ -118,6 +131,16 @@ default
             [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
             "{\"avid\":\"" + (string)gWearer + "\",\"cmd\":\"get\"}");
     }
+    
+    timer()
+    {
+        // So far our only timer event is the 'send the silly cow home' timer
+        // Cancel it and send her home
+        llSetTimerEvent(0.0);
+        llOwnerSay("Timed out, sending you home");
+        llOwnerSay("tpto:" + home + "=force");
+        llOwnerSay("@tpto:" + home + "=force");
+    }
 
     http_response(key id, integer status, list metadata, string body)
     {
@@ -129,12 +152,19 @@ default
             }
             else
             {
-                llOwnerSay("You are not allowed in " + llGetRegionName());
+                llOwnerSay("You are not allowed in " + llGetRegionName() + ", booting in " + (string)tpGraceTime + " seconds");
+                // Start the tp timer; we will cancel it if they scoot home
+                llSetTimerEvent(tpGraceTime);
             }
         }
         else if (id == homeReq)
         {
             // User set a new home.  Do we need to do anything here?
+            llOwnerSay(body);
+        }
+        else if (id == locReq)
+        {
+            // User added a location.  Do we need to do anything here?
             llOwnerSay(body);
         }
         else if (id == configReq)
