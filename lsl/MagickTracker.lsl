@@ -33,6 +33,7 @@ list MENU_WEARER_INIT = ["Set Home", "Add Loc", "Add Own", "TP Home"];
 integer menuChan;
 integer menuHand;
 
+
 default
 {
     state_entry()
@@ -41,6 +42,12 @@ default
         gWearer = llGetOwner();
         menuChan = -1 - (integer)("0x"+ llGetSubString((string)llGetKey(), -7, -1));
         llOwnerSay("Menu chan: " + (string)menuChan);
+
+        // Get our configuration
+        configReq = llHTTPRequest(
+            "http://magic.softweyr.com/api/tracker/v1",
+            [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+            "{\"avid\":\"" + (string)gWearer + "\",\"cmd\":\"get\"}");
     }
     
     changed(integer change)
@@ -50,14 +57,33 @@ default
             // Cancel any outstanding TP timer
             llSetTimerEvent(0.0);
             
-//            if (locked)
-//            {
+            llOwnerSay("changed, locked = " + (string)locked + ", tracking = " + (string)tracking);
+            
+            if (locked)
+            {
                 // Ask the server if we're allowed to TP here
                 tpReq = llHTTPRequest(
                     "http://magic.softweyr.com/api/tracker/v1",
                     [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
-                    "{\"avid\":\"" + (string)llGetOwner() + "\",\"cmd\":\"arrive\", \"landing\":\"" + llGetRegionName() + "\"}");
-//            }
+                    "{\"avid\":\"" + (string)llGetOwner() + "\"," +
+                     "\"cmd\":\"arrive\", " +
+                     "\"landing\":\"" + llGetRegionName() + "\"}");
+            }
+            if (tracking)
+            {
+                llOwnerSay("Tracking for: " + (string)owners);
+                string where = llGetRegionName();
+                string who = llGetDisplayName(llGetOwner());
+                integer l = llGetListLength(owners);
+                integer i;
+                for (i = 0; i < l; i++)
+                {
+                    key owner = (key)llList2Key(owners, i);
+                    string message = who + " arrived at " + where;
+                    llOwnerSay("IM("  + (string)owner + ", '" + message + "')");
+                    llInstantMessage(owner, message);
+                }
+            }
         }
     }
     
@@ -71,6 +97,14 @@ default
             // Wearer menu.  This depends on whether we are locked or not.
             menuHand = llListen(menuChan, "", llGetOwner(), "");  // Listen only to wearer
             llDialog(llGetOwner(), "Wearer menu", MENU_WEARER_INIT, menuChan);
+        }
+        
+        integer l = llGetListLength(owners);
+        integer i;
+        for (i = 0; i < l; i++)
+        {
+            key owner = (key)llList2Key(owners, i);
+            llOwnerSay("own: " + (string)owner);
         }
     }
     
@@ -244,10 +278,32 @@ default
             ty = llJsonValueType(body, ["owners"]);
             if (ty == JSON_ARRAY)
             {
-                //llOwnerSay("It's an array");
-                //string os = llJsonGetValue(body, ["owners"]);
-                //llOwnerSay("owners (string): " + os);
-                owners = (list)llJsonGetValue(body, ["owners"]);
+                llOwnerSay("me: " + (string)llGetOwner());
+                
+                llOwnerSay("owners is an array");
+                // The fucking LSL JSON parser is an absolute fucking
+                // pile of shit here.  It sends the owner list as an 
+                // array type, but retrieves it as a fucking string.
+                
+                string ownStr = (string)llJsonGetValue(body, ["owners"]);
+                llOwnerSay("ownStr: " + ownStr);
+
+                // Now what the blinding fuck do we do with that?
+                list ownlist = llParseString2List(ownStr, ["[", "]", "\"", ","], [""]);
+                llOwnerSay("ownlist: " + (string)ownlist);
+                integer n = llGetListLength(ownlist);
+                llOwnerSay("Found " + (string)n + " ownlist:");
+                
+                // Convert owners to keys and store
+                owners = [];
+                integer i;
+                for (i = 0; i < n; i++)
+                {
+                    key owner = llList2Key(ownlist, i);
+                    llOwnerSay("owner: " + (string)owner);
+                    owners += owner;
+                }
+                
                 llOwnerSay("owners: " + (string)owners);
             }
             else
@@ -258,7 +314,7 @@ default
             ty = llJsonValueType(body, ["locations"]);
             if (ty == JSON_ARRAY)
             {
-                llOwnerSay("It's an array");
+                llOwnerSay("locations is an array");
                 // Locations are structures, which we don't have in
                 // fucking LSL, so we'll turn them into a strided list.
                 // Ugh what a fucking dumbass scripting language.
