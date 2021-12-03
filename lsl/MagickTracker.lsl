@@ -10,6 +10,7 @@ key regReq;
 // Contants.  ish.
 
 float tpGraceTime = 30.0;   // Seconds before you get the boot
+integer maxOwnerDist = 10;
 
 // The poor sap who has this locked to them
 key gWearer;
@@ -33,7 +34,12 @@ list MENU_WEARER_INIT = ["Set Home", "Add Loc", "Add Own", "TP Home"];
 integer menuChan;
 integer menuHand;
 
+integer ownerChan;
+integer ownerHand;
 
+list ownerList;         // names of pending owners
+list pendingOwners;     // ids of pending owners
+    
 default
 {
     state_entry()
@@ -41,7 +47,8 @@ default
         //llOwnerSay("Hello, Avatar!");
         gWearer = llGetOwner();
         menuChan = -1 - (integer)("0x"+ llGetSubString((string)llGetKey(), -7, -1));
-        llOwnerSay("Menu chan: " + (string)menuChan);
+        ownerChan = menuChan - 1;
+        llOwnerSay("Menu chan: " + (string)menuChan + ", Owner chan: " + (string)ownerChan);
 
         // Get our configuration
         configReq = llHTTPRequest(
@@ -110,17 +117,29 @@ default
     
     listen(integer chan, string name, key id, string message)
     {
-        if (chan == menuChan)
+        if (chan == ownerChan)
+        {
+            // We have a new owner
+            llOwnerSay("New owner: " + message);
+            llListenRemove(ownerHand);
+            
+            // Find the selected name in the name list
+            integer i = llListFindList(ownerList, [message]);
+            if (i < 0)
+            {
+                llOwnerSay("WTF?  Owner list b0rked");
+            }
+            else
+            {
+                key newOwner = llList2Key(pendingOwners, i);
+                llOwnerSay("New owner: " + llList2String(ownerList, i) + " : " + (string)newOwner);
+            }
+        }
+        else if (chan == menuChan)
         {
             if (message == "Set Home")
             {
-                //llOwnerSay(llGetRegionName() + " is your home now");
-                
-                // Get the global coordinates for where the wearer is right now.
-                // This requires getting the region global coords from the server.
-                //regReq = llRequestSimulatorData(llGetRegionName(), DATA_SIM_POS);
-                // NOT NEEDED!  As of RLVa 2.9.20, we have enhanced tpto...
-                
+                // As of RLVa 2.9.20, we have enhanced tpto...
                 // Set home directly, then send to server as well
                 vector pos = llGetPos();
                 home = llGetRegionName() + "/" + 
@@ -133,12 +152,65 @@ default
                     "{\"avid\":\"" + (string)gWearer + "\",\"cmd\":\"sethome\",\"home\":\"" + home + "\"}");
                 llOwnerSay("Set home to " + home);
             }
+            else if (message == "Add Own")
+            {
+                // Perms: unlocked or owner
+                
+                list avis = llGetAgentList(AGENT_LIST_PARCEL_OWNER, []);
+                
+                // Remove me from the list
+                integer p = llListFindList(avis, [llGetOwner()]);
+                if (p != -1)
+                    avis = llDeleteSubList(avis, p, p);
+                
+                integer numberOfKeys = llGetListLength(avis);
+ 
+                vector currentPos = llGetPos();
+                list avilist;
+                key avi;
+                integer dist;
+ 
+                integer i;
+                for (i = 0; i < numberOfKeys; ++i)
+                {
+                    avi = llList2Key(avis, i);
+                    dist = llRound(llVecDist(currentPos, llList2Vector(llGetObjectDetails(avi, [OBJECT_POS]), 0)));
+                    if (dist <= maxOwnerDist)
+                        avilist += [dist, avi];
+                }
+ 
+                //  sort strided list by ascending distance
+                avilist = llListSort(avilist, 2, TRUE);
+                
+                // Add avis to the list, nearest to farthest, stopping at 12.
+                ownerList = [];
+                pendingOwners = [];
+
+                integer nitems = numberOfKeys;
+                if (12 < numberOfKeys)
+                    nitems = 12;
+                    
+                for (i = 0; i < (nitems * 2); i += 2)
+                {
+                    key avatar = llList2Key(avilist, i+1);
+                    string name = llGetDisplayName(avatar);
+                    integer dist = llList2Integer(avilist, i);
+                    llOwnerSay(name + " @ " + (string)dist + "m");
+                    ownerList += name;
+                    pendingOwners += avatar;
+                }
+                
+                ownerHand = llListen(ownerChan, "", llGetOwner(), "");
+                llDialog(llGetOwner(), "Choose new Owner", ownerList, ownerChan);
+            }
             else if (message == "TP Home")
             {
                 llOwnerSay("@tpto:" + home + "=force");
             }
-            else if (message =="Add Loc")
+            else if (message == "Add Loc")
             {
+                // Perms: Unlocked or Owner
+                
                 locReq = llHTTPRequest(
                     "http://magic.softweyr.com/api/tracker/v1",
                     [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
