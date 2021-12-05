@@ -3,9 +3,11 @@
 key configReq;
 key homeReq;  // Yup, got a real homeReq'er here
 key locReq;
+key ownReq;
 
 key tpReq;
 key regReq;
+key nameReq;
 
 // Contants.  ish.
 
@@ -25,20 +27,33 @@ list owners;
 integer travel;
 integer recover;
 
+// Associated with owners, but seperate since LSL makes it SUCH a PITA
+// to get the names of avis unless they are nearby.
+
+list ownNames;
+integer ownCount;
+
 // Menus.
 
-list MENU_WEARER_INIT = ["Set Home", "Add Loc", "Add Own", "TP Home"];
+list MENU_WEARER_INIT = ["Set Home", "Add Sim", "Del Sim", "TP Home", "Add Own", "Del Own", "Lock", "Track"];
+list MENU_WEARER_LOCK_UNOWN = ["Unlock", "TP Home"];
+list MENU_WEARER_LOCK = ["TP Home"];
+
+list MENU_OWNER = ["Set Home", "Add Sim", "Del Sim", "TP Home", "Add Own", "Del Own", "Lock", "Track"];
 
 // communications channels
 
 integer menuChan;
 integer menuHand;
 
-integer ownerChan;
-integer ownerHand;
+integer addOwnChan;
+integer addOwnHand;
+
+integer delOwnChan;
+integer delOwnHand;
 
 list ownerList;         // names of pending owners
-list pendingOwners;     // ids of pending owners
+list nearbyAvis;     // ids of pending owners
     
 default
 {
@@ -47,8 +62,9 @@ default
         //llOwnerSay("Hello, Avatar!");
         gWearer = llGetOwner();
         menuChan = -1 - (integer)("0x"+ llGetSubString((string)llGetKey(), -7, -1));
-        ownerChan = menuChan - 1;
-        llOwnerSay("Menu chan: " + (string)menuChan + ", Owner chan: " + (string)ownerChan);
+        addOwnChan = menuChan - 1;
+        delOwnChan = addOwnChan - 1;
+        llOwnerSay("channels: " + (string)menuChan + ", " + (string)addOwnChan + ", " + (string)delOwnChan);
 
         // Get our configuration
         configReq = llHTTPRequest(
@@ -96,8 +112,8 @@ default
     
     touch_start(integer num)
     {
-        gWearer = llDetectedKey(0);
-        llOwnerSay("Touch start by " + (string)gWearer);
+        key toucher = llDetectedKey(0);
+        llOwnerSay("Touch start by " + (string)toucher);
         
         if (llDetectedKey(0) == llGetOwner())
         {
@@ -117,13 +133,14 @@ default
     
     listen(integer chan, string name, key id, string message)
     {
-        if (chan == ownerChan)
+        if (chan == addOwnChan)
         {
-            // We have a new owner
             llOwnerSay("New owner: " + message);
-            llListenRemove(ownerHand);
             
             // Find the selected name in the name list
+            // This is such a totally fucking stupid way to do this,
+            // why can't dialog at least take a strided list?
+            
             integer i = llListFindList(ownerList, [message]);
             if (i < 0)
             {
@@ -131,9 +148,47 @@ default
             }
             else
             {
-                key newOwner = llList2Key(pendingOwners, i);
-                llOwnerSay("New owner: " + llList2String(ownerList, i) + " : " + (string)newOwner);
+                key newOwner = llList2Key(nearbyAvis, i);
+                llOwnerSay("Owner: " + llList2String(ownerList, i) + " : " + (string)newOwner);
+                
+                ownReq = llHTTPRequest(
+                    "http://magic.softweyr.com/api/tracker/v1",
+                    [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                    "{\"avid\":\"" + (string)gWearer + "\"," +
+                     "\"cmd\":\"addowner\"," +
+                     "\"owner\":\"" + (string)newOwner + "\"}");
             }
+            llListenRemove(addOwnHand);
+        }
+        else if (chan == delOwnChan)
+        {
+            llOwnerSay("Del owner: " + message);
+            
+            // Find the selected name in the name list
+            // This is such a totally fucking stupid way to do this,
+            // why can't dialog at least take a strided list?
+            // On the other hand, why doesn't LSL have dictionaries?
+            // This is the DELETE side, so look in the list of our
+            // owners.
+            
+            integer i = llListFindList(ownNames, [message]);
+            if (i < 0)
+            {
+                llOwnerSay("WTF?  Owner list jacked");
+            }
+            else
+            {
+                key newOwner = llList2Key(owners, i);
+                llOwnerSay("Owner: " + message + " : " + (string)newOwner);
+                
+                ownReq = llHTTPRequest(
+                    "http://magic.softweyr.com/api/tracker/v1",
+                    [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                    "{\"avid\":\"" + (string)gWearer + "\"," +
+                     "\"cmd\":\"delowner\"," +
+                     "\"owner\":\"" + (string)newOwner + "\"}");
+            }
+            llListenRemove(delOwnHand);
         }
         else if (chan == menuChan)
         {
@@ -184,7 +239,7 @@ default
                 
                 // Add avis to the list, nearest to farthest, stopping at 12.
                 ownerList = [];
-                pendingOwners = [];
+                nearbyAvis = [];
 
                 integer nitems = numberOfKeys;
                 if (12 < numberOfKeys)
@@ -197,17 +252,24 @@ default
                     integer dist = llList2Integer(avilist, i);
                     llOwnerSay(name + " @ " + (string)dist + "m");
                     ownerList += name;
-                    pendingOwners += avatar;
+                    nearbyAvis += avatar;
                 }
                 
-                ownerHand = llListen(ownerChan, "", llGetOwner(), "");
-                llDialog(llGetOwner(), "Choose new Owner", ownerList, ownerChan);
+                addOwnHand = llListen(addOwnChan, "", llGetOwner(), "");
+                llDialog(llGetOwner(), "Choose new Owner", ownerList, addOwnChan);
+            }
+            else if (message == "Del Own")
+            {
+                // Display the list of owner names we have cached.
+                // This is racey as all hell.
+                delOwnHand = llListen(delOwnChan, "", llGetOwner(), "");
+                llDialog(llGetOwner(), "Remove which Owner", ownNames, delOwnChan);
             }
             else if (message == "TP Home")
             {
                 llOwnerSay("@tpto:" + home + "=force");
             }
-            else if (message == "Add Loc")
+            else if (message == "Add Sim")
             {
                 // Perms: Unlocked or Owner
                 
@@ -221,11 +283,27 @@ default
             llListenRemove(menuHand);
         }
     }
+    
+    dataserver(key qId, string data)
+    {
+        // nameReq is exclusively used to get the names of our owners,
+        // one at a time, from the dataserver.  What a fucking kludge.
+        
+        if (nameReq == qId)
+        {
+            llSay(0, "Display name[" + (string)ownCount + "] is " + data);
+            ownNames += data;
+            ownCount += 1;
+            if (ownCount < llGetListLength(owners)) {
+                nameReq = llRequestDisplayName(llList2Key(owners, ownCount));
+            }                
+        }
+    }
         
     touch_end(integer num)
     {
-        gWearer = llDetectedKey(0);
-        llOwnerSay("Touch end by " + (string)gWearer);
+        key toucher = llDetectedKey(0);
+        llOwnerSay("Touch end by " + (string)toucher);
     }
     
     attach(key id)
@@ -250,7 +328,47 @@ default
 
     http_response(key id, integer status, list metadata, string body)
     {
-        if (id == tpReq) {
+        // Owner added or deleted; the response is the same to both:
+        // the complete current list of owners.  Save the list, then
+        // start getting their names from the dataserver.
+        if (id == ownReq) 
+        {
+            string ty = llJsonValueType(body, [(string)gWearer]);
+            if (ty == JSON_ARRAY)
+            {
+                string ownStr = (string)llJsonGetValue(body, [(string)gWearer]);
+                llOwnerSay("owners as string: " + ownStr);
+                list ownlist = llParseString2List(ownStr, ["[", "]", "\"", ","], [""]);
+                llOwnerSay("ownlist: " + (string)ownlist);
+                integer n = llGetListLength(ownlist);
+                llOwnerSay("Found " + (string)n + " ownlist:");
+                
+                // Convert owners to keys and store
+                owners = [];
+                integer i;
+                for (i = 0; i < n; i++)
+                {
+                    key owner = llList2Key(ownlist, i);
+//                    llOwnerSay("owner: " + (string)owner);
+                    owners += owner;
+                }
+                
+                llOwnerSay("owners: " + (string)owners);
+                
+                // Kick off the search for owner names.
+                // Wow this is a suck-ass way to do this.
+                // We leave the existing list in place, 
+                // just in case it has valid names in it
+                
+                ownCount = 0;
+                nameReq = llRequestDisplayName(llList2Key(owners, 0));
+            }
+            else
+            {
+                llOwnerSay("We got WTF for owners");
+            }
+        }
+        else if (id == tpReq) {
             //llOwnerSay(body);
             if (llJsonValueType(body, [(string)llGetOwner()]) == JSON_TRUE)
             {
@@ -377,6 +495,11 @@ default
                 }
                 
                 llOwnerSay("owners: " + (string)owners);
+                
+                // Go find the owners names, too, for the "Del Owner" menu
+                
+                ownCount = 0;
+                nameReq = llRequestDisplayName(llList2Key(owners, 0));
             }
             else
             {
