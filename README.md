@@ -6,8 +6,8 @@ Initially it will be touch control, but an owner hud would make implanting much 
 # Architecture #
 
 Because LSL is such a shit language, with shit for storage, a large chunk of the functionality
-will actually be implemented in a web service we can run on a hosting site.  See docs/ConfigDB.md 
+will actually be implemented in a web service we can run on a hosting site.  See [ConfigDB](/docs/ConfigDB.md)
 for a detailed description of the Database.
 
 The functionality that has to be in-world, namely a touch UI and actually controlling the avatar
-is described in docs/InWorld.md.
+is described in [InWorld](/docs/InWorld.md).
