@@ -296,6 +296,10 @@ def settravel(avid, away=0, recover=0):
     return str(e), 500
 
 
+# Add and delete owner return the full owners list
+# so the script can be certain it has the right list.
+# Also so we can look up the owner display names.
+
 @app.route('/addowner/<avid>/<owner>', methods = ['POST'])
 def addowner(avid, owner):
   app.logger.info(f"addowner({avid}, {owner})")
@@ -307,7 +311,16 @@ def addowner(avid, owner):
         cursor.execute(
           'INSERT INTO owners (avid, owner) VALUES (%s, %s) ON CONFLICT DO NOTHING', 
           [avid, owner])
-        return {avid: owner}
+
+        cursor.execute('SELECT owner FROM owners WHERE avid = %s', [avid, ])
+        row2 = cursor.fetchall()
+        # print(row2)
+        owners = []
+        for row in row2:
+          # print(row)
+          owners.append(row[0])
+
+        return {avid: owners}
   except Exception as e:
     print(f"Minnows! {e}") 
     return str(e), 500
@@ -324,7 +337,16 @@ def delowner(avid, owner):
         cursor.execute(
           'DELETE FROM owners WHERE avid = %s AND owner = %s', 
           [avid, owner])
-        return {avid: owner}
+
+        cursor.execute('SELECT owner FROM owners WHERE avid = %s', [avid, ])
+        row2 = cursor.fetchall()
+        # print(row2)
+        owners = []
+        for row in row2:
+          # print(row)
+          owners.append(row[0])
+
+        return {avid: owners}
   except Exception as e:
     print(f"Minnows! {e}") 
     return str(e), 500
