@@ -4,6 +4,7 @@ key configReq;
 key homeReq;  // Yup, got a real homeReq'er here
 key locReq;
 key ownReq;
+key lockReq;
 
 key tpReq;
 key regReq;
@@ -39,7 +40,10 @@ list MENU_WEARER_INIT = ["Set Home", "Add Sim", "Del Sim", "TP Home", "Add Own",
 list MENU_WEARER_LOCK_UNOWN = ["Unlock", "TP Home"];
 list MENU_WEARER_LOCK = ["TP Home"];
 
-list MENU_OWNER = ["Set Home", "Add Sim", "Del Sim", "TP Home", "Add Own", "Del Own", "Lock", "Track"];
+// Set Home, Add Own, Del Own, Add Loc, Del Loc, TP Home, Lock/Unlock, Track/Untrack
+// We rewrite the last two entries based on the current state.
+
+list MENU_OWNER = ["Set Home", "Add Own", "Del Own", "Add Sim", "Del Sim", "TP Home", "Lock", "Track"];
 
 // communications channels
 
@@ -121,13 +125,33 @@ default
             menuHand = llListen(menuChan, "", llGetOwner(), "");  // Listen only to wearer
             llDialog(llGetOwner(), "Wearer menu", MENU_WEARER_INIT, menuChan);
         }
-        
-        integer l = llGetListLength(owners);
-        integer i;
-        for (i = 0; i < l; i++)
+        else
         {
-            key owner = (key)llList2Key(owners, i);
-            llOwnerSay("own: " + (string)owner);
+            integer i = llListFindList(owners, [toucher]);
+            if (i == -1)
+            {
+                llOwnerSay(llGetDisplayName(toucher) + " is not allowed to operate your tracker");
+            }
+            else
+            {
+                llOwnerSay(llList2String(ownNames, i) + " is operating your tracker");
+                
+                // Update the Lock and Track items based on the current state.
+                // We have to do it both ways each time, in case we modified
+                // the non-constant.
+                
+                list menu = MENU_OWNER;
+                if (locked)
+                {
+                    menu = llListReplaceList(menu, ["Unlock"], 6, 6);
+                }
+                if (tracking)
+                {
+                    menu = llListReplaceList(menu, ["Untrack"], 7, 7);
+                }
+                menuHand = llListen(menuChan, "", toucher, "");
+                llDialog(toucher, "Owner menu", menu, menuChan);
+            }
         }
     }
     
@@ -206,6 +230,49 @@ default
                     [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
                     "{\"avid\":\"" + (string)gWearer + "\",\"cmd\":\"sethome\",\"home\":\"" + home + "\"}");
                 llOwnerSay("Set home to " + home);
+            }
+            // The next four are satisfyingly similar
+            else if (message == "Lock")
+            {
+                locked = TRUE;
+                lockReq = llHTTPRequest(
+                    "http://magic.softweyr.com/api/tracker/v1",
+                    [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                    "{\"avid\":\"" + (string)gWearer + "\"," +
+                     "\"cmd\":\"lock\"}");
+                llOwnerSay("Locked");
+            }
+            else if (message == "Unlock")
+            {
+                locked = FALSE;
+                lockReq = llHTTPRequest(
+                    "http://magic.softweyr.com/api/tracker/v1",
+                    [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                    "{\"avid\":\"" + (string)gWearer + "\"," +
+                     "\"cmd\":\"lock\"," +
+                     "\"value\":\"false\"}");
+                llOwnerSay("Unlocked");
+            }
+            else if (message == "Track")
+            {
+                tracking = TRUE;
+                lockReq = llHTTPRequest(
+                    "http://magic.softweyr.com/api/tracker/v1",
+                    [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                    "{\"avid\":\"" + (string)gWearer + "\"," +
+                     "\"cmd\":\"track\"}");
+                llOwnerSay("Tracking");
+            }
+            else if (message == "Untrack")
+            {
+                tracking = FALSE;
+                lockReq = llHTTPRequest(
+                    "http://magic.softweyr.com/api/tracker/v1",
+                    [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                    "{\"avid\":\"" + (string)gWearer + "\"," +
+                     "\"cmd\":\"track\"," +
+                     "\"value\":\"false\"}");
+                llOwnerSay("Utracked");
             }
             else if (message == "Add Own")
             {
@@ -299,13 +366,13 @@ default
             }                
         }
     }
-        
-    touch_end(integer num)
-    {
-        key toucher = llDetectedKey(0);
-        llOwnerSay("Touch end by " + (string)toucher);
-    }
-    
+
+//    touch_end(integer num)
+//    {
+//        key toucher = llDetectedKey(0);
+//        llOwnerSay("Touch end by " + (string)toucher);
+//    }
+
     attach(key id)
     {
         // Get our configuration
@@ -389,6 +456,11 @@ default
         else if (id == locReq)
         {
             // User added a location.  Do we need to do anything here?
+            llOwnerSay(body);
+        }
+        else if (id == lockReq)
+        {
+            // This was a lock/unlock or track/untrack request
             llOwnerSay(body);
         }
         else if (id == configReq)
