@@ -92,7 +92,7 @@ def api():
         if 'recover' in content:
           return settravel(content['avid'], content['away'], content['recover'])
       else:
-        return addloc(content['avid'], content['away'])
+        return settravel(content['avid'], content['away'])
     
     elif content['cmd'] == 'sethome':
       # Somewhat different, we pass the home as a string
@@ -362,9 +362,9 @@ def addloc(avid, location, dwell=0, per=0):
   dwell = int(dwell)
   per = int(per)
 
-  # Fixup args a bit.  If a dwell was specified but no per, push the bitch
+  # Fixup args a bit.  If a dwell was specified but no per, make per day
   if dwell != 0 and per == 0:
-    per = dwell
+    per = 24
   
   print(f"Adding/updating {location} to {dwell} mins per {per} hours")
 
