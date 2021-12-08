@@ -12,7 +12,7 @@ key nameReq;
 
 // Contants.  ish.
 
-float tpGraceTime = 30.0;   // Seconds before you get the boot
+float tpGraceTime = 60.0;   // Seconds before you get the boot
 integer maxOwnerDist = 10;
 
 // The poor sap who has this locked to them
@@ -37,8 +37,12 @@ integer ownCount;
 // Menus.
 
 list MENU_WEARER_INIT = ["Set Home", "Add Sim", "Del Sim", "TP Home", "Add Own", "Del Own", "Lock", "Track"];
-list MENU_WEARER_LOCK_UNOWN = ["Unlock", "TP Home"];
-list MENU_WEARER_LOCK = ["TP Home"];
+list MENU_WEARER_LOCK_UNOWN = ["Unlock", "Travel", "TP Home"];
+list MENU_WEARER_LOCK = ["Travel", "TP Home"];
+
+// Sim dwell time menu
+
+list MENU_SIM_DWELL = ["30 mins", "1 hour", "2 hours", "4 hours", "6 hours", "Unlimited"];
 
 // Set Home, Add Own, Del Own, Add Loc, Del Loc, TP Home, Lock/Unlock, Track/Untrack
 // We rewrite the last two entries based on the current state.
@@ -50,6 +54,9 @@ list MENU_OWNER = ["Set Home", "Add Own", "Del Own", "Add Sim", "Del Sim", "TP H
 integer menuChan;
 integer menuHand;
 
+integer dwellChan;
+integer dwellHand;
+
 integer addOwnChan;
 integer addOwnHand;
 
@@ -58,7 +65,13 @@ integer delOwnHand;
 
 list ownerList;         // names of pending owners
 list nearbyAvis;     // ids of pending owners
-    
+
+string BoolOf(integer val)
+{
+    if (val) { return "Yes"; }
+    return "No";
+}
+
 default
 {
     state_entry()
@@ -68,7 +81,8 @@ default
         menuChan = -1 - (integer)("0x"+ llGetSubString((string)llGetKey(), -7, -1));
         addOwnChan = menuChan - 1;
         delOwnChan = addOwnChan - 1;
-        llOwnerSay("channels: " + (string)menuChan + ", " + (string)addOwnChan + ", " + (string)delOwnChan);
+        dwellChan = delOwnChan - 1;
+        llOwnerSay("channels: " + (string)menuChan + ", " + (string)addOwnChan + ", " + (string)delOwnChan + ", " + (string)dwellChan);
 
         // Get our configuration
         configReq = llHTTPRequest(
@@ -150,14 +164,41 @@ default
                     menu = llListReplaceList(menu, ["Untrack"], 7, 7);
                 }
                 menuHand = llListen(menuChan, "", toucher, "");
-                llDialog(toucher, "Owner menu", menu, menuChan);
+                string statmsg = llGetDisplayName(llGetOwner()) + "'s Tracker\n" +
+                    "Locked: " + BoolOf(locked) + "\n" +
+                    "Tracking: " + BoolOf(tracking);
+                llDialog(toucher, statmsg, menu, menuChan);
             }
         }
     }
     
     listen(integer chan, string name, key id, string message)
     {
-        if (chan == addOwnChan)
+        if (chan == dwellChan)
+        {
+            // MENU_SIM_DWELL = ["30 mins", "1 hour", "2 hours", "4 hours", "6 hours", "Unlimited"];
+            
+            llOwnerSay("Sim dwell time: " + message);
+            integer minutes = 0;
+            if (message == "30 mins") { minutes = 30; }
+            else if (message == "1 hour") { minutes = 60; }
+            else if (message == "2 hours") { minutes = 120; }
+            else if (message == "4 hours") { minutes = 240; }
+            else if (message == "6 hours") { minutes = 360; }
+            else { minutes = 0; }
+
+            locReq = llHTTPRequest(
+                "http://magic.softweyr.com/api/tracker/v1",
+                [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                "{\"avid\":\"" + (string)gWearer + "\"," +
+                 "\"cmd\":\"addloc\"," +
+                 "\"location\":\"" + llGetRegionName() + "\"," + 
+                 "\"dwell\":\"" + (string)minutes + "\"}");
+
+            //llOwnerSay(llGetRegionName() + " being allowed?");
+            llListenRemove(dwellHand);
+        }
+        else if (chan == addOwnChan)
         {
             llOwnerSay("New owner: " + message);
             
@@ -340,11 +381,10 @@ default
             {
                 // Perms: Unlocked or Owner
                 
-                locReq = llHTTPRequest(
-                    "http://magic.softweyr.com/api/tracker/v1",
-                    [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
-                    "{\"avid\":\"" + (string)gWearer + "\",\"cmd\":\"addloc\",\"location\":\"" + llGetRegionName() + "\"}");
-                llOwnerSay(llGetRegionName() + " is now allowed");
+                // This requires a secondary menu, to ask if the sim should have time limits.
+                
+                dwellHand = llListen(dwellChan, "", id, "");  // Listen only to toucher
+                llDialog(id, "Sim dwell time", MENU_SIM_DWELL, dwellChan);
             }
             
             llListenRemove(menuHand);
