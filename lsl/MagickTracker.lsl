@@ -35,19 +35,47 @@ list ownNames;
 integer ownCount;
 
 // Menus.
+// First is the menu for OWNERS, which is also used for UNLOCKED WEARERS
+// We rewrite the "lock" and "track" entries based on the current state.
 
-list MENU_WEARER_UNLOCK = ["Set Home", "Add Sim", "Del Sim", "TP Home", "Add Own", "Del Own", "Lock", "Track"];
+list MENU_OWNER = ["Add Sim", "Del Sim", "TP Home", "Add Own", "Del Own", "Wander", "Lock", "Track"];
+
+// Customize the owner menu for the current state
+// Do it the safe way.
+
+list ownerMenu()
+{
+    list menu = MENU_OWNER;
+    integer i;
+    if (locked)
+    {
+        i = llListFindList(menu, ["Lock"]);
+        llOwnerSay("Menu: Lock at: " + (string)i);
+        menu = llListReplaceList(menu, ["Unlock"], i, i);
+    }
+    else
+    {
+        llOwnerSay("Menu: Unlocked");
+    }
+    if (tracking)
+    {
+        i = llListFindList(menu, ["Track"]);
+        llOwnerSay("Menu: Track at: " + (string)i);
+        menu = llListReplaceList(menu, ["Untrack"], 7, 7);
+    }
+    else
+    {
+        llOwnerSay("Menu: Untracked");
+    }
+    return menu;
+}
+
 list MENU_WEARER_LOCK_UNOWN = ["Unlock", "Travel", "TP Home"];
 list MENU_WEARER_LOCK = ["Travel", "TP Home"];
 
 // Sim dwell time menu
 
 list MENU_SIM_DWELL = ["30 mins", "1 hour", "2 hours", "4 hours", "6 hours", "Unlimited"];
-
-// Set Home, Add Own, Del Own, Add Loc, Del Loc, TP Home, Lock/Unlock, Track/Untrack
-// We rewrite the last two entries based on the current state.
-
-list MENU_OWNER = ["Set Home", "Add Own", "Del Own", "Add Sim", "Del Sim", "TP Home", "Lock", "Track"];
 
 // communications channels
 
@@ -128,7 +156,6 @@ default
         }
     }
     
-// list MENU_WEARER_UNLOCK
 // list MENU_WEARER_LOCK_UNOWN
 // list MENU_WEARER_LOCK
 
@@ -161,7 +188,7 @@ default
             }
             else
             {
-                llDialog(llGetOwner(), "Unlocked wearer menu", MENU_WEARER_UNLOCK, menuChan);
+                llDialog(llGetOwner(), "Unlocked wearer menu", ownerMenu(), menuChan);
             }
         }
         else
@@ -175,24 +202,11 @@ default
             {
                 llOwnerSay(llList2String(ownNames, i) + " is operating your tracker");
                 
-                // Update the Lock and Track items based on the current state.
-                // We have to do it both ways each time, in case we modified
-                // the non-constant.
-                
-                list menu = MENU_OWNER;
-                if (locked)
-                {
-                    menu = llListReplaceList(menu, ["Unlock"], 6, 6);
-                }
-                if (tracking)
-                {
-                    menu = llListReplaceList(menu, ["Untrack"], 7, 7);
-                }
                 menuHand = llListen(menuChan, "", toucher, "");
                 string statmsg = llGetDisplayName(llGetOwner()) + "'s Tracker\n" +
                     "Locked: " + BoolOf(locked) + "\n" +
                     "Tracking: " + BoolOf(tracking);
-                llDialog(toucher, statmsg, menu, menuChan);
+                llDialog(toucher, statmsg, ownerMenu(), menuChan);
             }
         }
     }
@@ -316,7 +330,7 @@ default
                     [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"lock\"," +
-                     "\"value\":\"false\"}");
+                     "\"state\":\"false\"}");
                 llOwnerSay("Unlocked");
             }
             else if (message == "Track")
@@ -337,8 +351,8 @@ default
                     [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"track\"," +
-                     "\"value\":\"false\"}");
-                llOwnerSay("Utracked");
+                     "\"state\":\"false\"}");
+                llOwnerSay("Untracked");
             }
             else if (message == "Add Own")
             {
