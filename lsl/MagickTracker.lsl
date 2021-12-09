@@ -10,11 +10,6 @@ key tpReq;
 key regReq;
 key nameReq;
 
-// Contants.  ish.
-
-float tpGraceTime = 60.0;   // Seconds before you get the boot
-integer maxOwnerDist = 10;
-
 // The poor sap who has this locked to them
 key gWearer;
 
@@ -91,6 +86,23 @@ integer addOwnHand;
 integer delOwnChan;
 integer delOwnHand;
 
+// Contants.  ish.
+
+integer tpGraceTime = 60;   // Seconds before you get the boot
+integer menuGraceTime = 30; // How long menus wait for a decision
+integer maxOwnerDist = 10;
+
+// timer values, expressed in "unix" time
+// TP home, set when the avi enters an unpermitted sim,
+// reset when avi enters a permitted sim.
+// One per listen channel, in case of timeout
+
+integer timerTP;
+integer timerMenuChan;
+integer timerDwellChan;
+integer timerAddOwnChan;
+integer timerDelOwnChan;
+
 list ownerList;         // names of pending owners
 list nearbyAvis;     // ids of pending owners
 
@@ -117,15 +129,21 @@ default
             "http://magic.softweyr.com/api/tracker/v1",
             [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
             "{\"avid\":\"" + (string)gWearer + "\",\"cmd\":\"get\"}");
+        
+        // Zero out any timers, then start the timer tick
+        timerTP = 0;
+        timerMenuChan = 0;
+        timerDwellChan = 0;
+        timerAddOwnChan = 0;
+        timerDelOwnChan = 0;
+        
+        llSetTimerEvent(1.0);
     }
     
     changed(integer change)
     {
         if (change & CHANGED_TELEPORT) //note that it's & and not &&... it's bitwise!
         {
-            // Cancel any outstanding TP timer
-            llSetTimerEvent(0.0);
-            
             llOwnerSay("changed, locked = " + (string)locked + ", tracking = " + (string)tracking);
             
             if (locked)
@@ -170,6 +188,7 @@ default
 
             // Wearer menu.  This depends on whether we are locked or not.
             menuHand = llListen(menuChan, "", llGetOwner(), "");  // Listen only to wearer
+            timerMenuChan = llGetUnixTime() + menuGraceTime;
             if (locked)
             {
                 llOwnerSay("Wearer is locked");
@@ -404,6 +423,7 @@ default
                 
                 addOwnHand = llListen(addOwnChan, "", llGetOwner(), "");
                 llDialog(llGetOwner(), "Choose new Owner", ownerList, addOwnChan);
+                timerAddOwnChan = llGetUnixTime() + menuGraceTime;
             }
             else if (message == "Del Own")
             {
@@ -411,6 +431,7 @@ default
                 // This is racey as all hell.
                 delOwnHand = llListen(delOwnChan, "", llGetOwner(), "");
                 llDialog(llGetOwner(), "Remove which Owner", ownNames, delOwnChan);
+                timerDelOwnChan = llGetUnixTime() + menuGraceTime;
             }
             else if (message == "TP Home")
             {
@@ -424,6 +445,7 @@ default
                 
                 dwellHand = llListen(dwellChan, "", id, "");  // Listen only to toucher
                 llDialog(id, "Sim dwell time", MENU_SIM_DWELL, dwellChan);
+                timerDwellChan = llGetUnixTime() + menuGraceTime;
             }
             
             llListenRemove(menuHand);
@@ -464,12 +486,35 @@ default
     
     timer()
     {
-        // So far our only timer event is the 'send the silly cow home' timer
-        // Cancel it and send her home
-        llSetTimerEvent(0.0);
-        llOwnerSay("Timed out, sending you home");
-        //llOwnerSay("tpto:" + home + "=force");
-        llOwnerSay("@tpto:" + home + "=force");
+        integer now = llGetUnixTime();
+        
+        // Check to see if any timers have expired.
+        if (timerTP != 0 && timerTP < now)
+        {
+            llOwnerSay("Timed out, sending you home");
+            llOwnerSay("@tpto:" + home + "=force");
+            timerTP = 0; // Reset now to avoid double-tp
+        }
+        if (timerMenuChan != 0 && timerMenuChan < now)
+        {
+            llListenRemove(menuHand);
+            timerMenuChan = 0;
+        }
+        if (timerDwellChan != 0 && timerDwellChan < now)
+        {
+            llListenRemove(dwellHand);
+            timerDwellChan = 0;
+        }
+        if (timerAddOwnChan != 0 && timerAddOwnChan < now)
+        {
+            llListenRemove(addOwnHand);
+            timerAddOwnChan = 0;
+        }
+        if (timerDelOwnChan != 0 && timerDelOwnChan < now)
+        {
+            llListenRemove(delOwnHand);
+            timerDelOwnChan = 0;
+        }
     }
 
     http_response(key id, integer status, list metadata, string body)
@@ -519,12 +564,13 @@ default
             if (llJsonValueType(body, [(string)llGetOwner()]) == JSON_TRUE)
             {
                 llOwnerSay("Welcome to " + llGetRegionName());
+                timerTP = 0;
             }
             else
             {
-                llOwnerSay("You are not allowed in " + llGetRegionName() + ", booting in " + (string)tpGraceTime + " seconds");
-                // Start the tp timer; we will cancel it if they scoot home
-                llSetTimerEvent(tpGraceTime);
+                llOwnerSay("You are not allowed in " + llGetRegionName() + 
+                    ", booting in " + (string)tpGraceTime + " seconds");
+                timerTP = llGetUnixTime() + tpGraceTime;
             }
         }
         else if (id == homeReq)
