@@ -41,19 +41,19 @@ def api():
     
     elif content['cmd'] == 'lock':
       if 'state' in content:
-        return lock(content['avid'], content['state'])
+        return lock(content['avid'], content['state'].lower().startswith('tru'))
       else:
         return lock(content['avid'])
     
     elif content['cmd'] == 'track':
       if 'state' in content:
-        return track(content['avid'], content['state'])
+        return track(content['avid'], content['state'].lower().startswith('tru'))
       else:
         return track(content['avid'])
     
     elif content['cmd'] == 'lockout':
       if 'state' in content:
-        return lockout(content['avid'], content['state'])
+        return lockout(content['avid'], content['state'].lower().startswith('tru'))
       else:
         return lockout(content['avid'])
     
