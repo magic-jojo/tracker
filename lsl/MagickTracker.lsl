@@ -36,7 +36,7 @@ integer ownCount;
 
 // Menus.
 
-list MENU_WEARER_INIT = ["Set Home", "Add Sim", "Del Sim", "TP Home", "Add Own", "Del Own", "Lock", "Track"];
+list MENU_WEARER_UNLOCK = ["Set Home", "Add Sim", "Del Sim", "TP Home", "Add Own", "Del Own", "Lock", "Track"];
 list MENU_WEARER_LOCK_UNOWN = ["Unlock", "Travel", "TP Home"];
 list MENU_WEARER_LOCK = ["Travel", "TP Home"];
 
@@ -128,6 +128,10 @@ default
         }
     }
     
+// list MENU_WEARER_UNLOCK
+// list MENU_WEARER_LOCK_UNOWN
+// list MENU_WEARER_LOCK
+
     touch_start(integer num)
     {
         key toucher = llDetectedKey(0);
@@ -135,9 +139,30 @@ default
         
         if (llDetectedKey(0) == llGetOwner())
         {
+            llOwnerSay("Touched by wearer");
+
             // Wearer menu.  This depends on whether we are locked or not.
             menuHand = llListen(menuChan, "", llGetOwner(), "");  // Listen only to wearer
-            llDialog(llGetOwner(), "Wearer menu", MENU_WEARER_INIT, menuChan);
+            if (locked)
+            {
+                llOwnerSay("Wearer is locked");
+                
+                // Unowned?
+                if (llGetListLength(owners) == 0)
+                {
+                    llOwnerSay("Wearer is unowned");
+                    llDialog(llGetOwner(), "Locked wearer menu", MENU_WEARER_LOCK_UNOWN, menuChan);
+                }
+                else
+                { 
+                    llOwnerSay("Wearer is Owned");
+                    llDialog(llGetOwner(), "Unowned wearer menu", MENU_WEARER_LOCK, menuChan);
+                }
+            }
+            else
+            {
+                llDialog(llGetOwner(), "Unlocked wearer menu", MENU_WEARER_UNLOCK, menuChan);
+            }
         }
         else
         {
@@ -429,7 +454,7 @@ default
         // Cancel it and send her home
         llSetTimerEvent(0.0);
         llOwnerSay("Timed out, sending you home");
-        llOwnerSay("tpto:" + home + "=force");
+        //llOwnerSay("tpto:" + home + "=force");
         llOwnerSay("@tpto:" + home + "=force");
     }
 
