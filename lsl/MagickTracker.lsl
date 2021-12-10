@@ -5,10 +5,12 @@ key homeReq;  // Yup, got a real homeReq'er here
 key locReq;
 key ownReq;
 key lockReq;
+key travelReq;
 
 key tpReq;
 key regReq;
 key nameReq;
+key travReq;
 
 // The poor sap who has this locked to them
 key gWearer;
@@ -33,7 +35,9 @@ integer ownCount;
 // First is the menu for OWNERS, which is also used for UNLOCKED WEARERS
 // We rewrite the "lock" and "track" entries based on the current state.
 
-list MENU_OWNER = ["Add Sim", "Del Sim", "TP Home", "Add Own", "Del Own", "Wander", "Lock", "Track"];
+list MENU_OWNER = ["TP Home", "Add Sim", "Del Sim", 
+                   "Lock", "Add Own", "Del Own", 
+                   "Track", "Travel Time"];
 
 // Customize the owner menu for the current state
 // Do it the safe way.
@@ -56,7 +60,7 @@ list ownerMenu()
     {
         i = llListFindList(menu, ["Track"]);
         llOwnerSay("Menu: Track at: " + (string)i);
-        menu = llListReplaceList(menu, ["Untrack"], 7, 7);
+        menu = llListReplaceList(menu, ["Untrack"], i, i);
     }
     else
     {
@@ -70,7 +74,14 @@ list MENU_WEARER_LOCK = ["Travel", "TP Home"];
 
 // Sim dwell time menu
 
-list MENU_SIM_DWELL = ["30 mins", "1 hour", "2 hours", "4 hours", "6 hours", "Unlimited"];
+list MENU_LINGER = ["30 mins", "1 hour", "2 hours", 
+                    "4 hours", "6 hours", "Unlimited"];
+
+// Travel time and reocvery menus
+list MENU_TRAVEL = ["None", "30 mins", "1 hour", 
+                    "2 hours", "4 hours", "6 hours"];
+
+list MENU_RECOVER = ["Hour", "SL Day", "RL Day", "Week"];
 
 // communications channels
 
@@ -79,6 +90,12 @@ integer menuHand;
 
 integer dwellChan;
 integer dwellHand;
+
+integer allowChan;
+integer allowHand;
+
+integer recoverChan;
+integer recoverHand;
 
 integer addOwnChan;
 integer addOwnHand;
@@ -102,9 +119,15 @@ integer timerMenuChan;
 integer timerDwellChan;
 integer timerAddOwnChan;
 integer timerDelOwnChan;
+integer timerAllowChan;
+integer timerRecoverChan;
+
+// Multi-stage data
 
 list ownerList;         // names of pending owners
 list nearbyAvis;     // ids of pending owners
+
+integer allowMinutes;
 
 string BoolOf(integer val)
 {
@@ -122,7 +145,9 @@ default
         addOwnChan = menuChan - 1;
         delOwnChan = addOwnChan - 1;
         dwellChan = delOwnChan - 1;
-        llOwnerSay("channels: " + (string)menuChan + ", " + (string)addOwnChan + ", " + (string)delOwnChan + ", " + (string)dwellChan);
+        allowChan = dwellChan -1;
+        recoverChan = allowChan - 1;
+//        llOwnerSay("channels: " + (string)menuChan + ", " + (string)addOwnChan + ", " + (string)delOwnChan + ", " + (string)dwellChan + ", " + (string)allowChan);
 
         // Get our configuration
         configReq = llHTTPRequest(
@@ -167,16 +192,13 @@ default
                 {
                     key owner = (key)llList2Key(owners, i);
                     string message = who + " arrived at " + where;
-                    llOwnerSay("IM("  + (string)owner + ", '" + message + "')");
+                    //llOwnerSay("IM("  + (string)owner + ", '" + message + "')");
                     llInstantMessage(owner, message);
                 }
             }
         }
     }
     
-// list MENU_WEARER_LOCK_UNOWN
-// list MENU_WEARER_LOCK
-
     touch_start(integer num)
     {
         key toucher = llDetectedKey(0);
@@ -234,7 +256,7 @@ default
     {
         if (chan == dwellChan)
         {
-            // MENU_SIM_DWELL = ["30 mins", "1 hour", "2 hours", "4 hours", "6 hours", "Unlimited"];
+            // MENU_LINGER = ["30 mins", "1 hour", "2 hours", "4 hours", "6 hours", "Unlimited"];
             
             llOwnerSay("Sim dwell time: " + message);
             integer minutes = 0;
@@ -255,6 +277,56 @@ default
 
             //llOwnerSay(llGetRegionName() + " being allowed?");
             llListenRemove(dwellHand);
+        }
+        else if (chan == allowChan)
+        {
+            // MENU_TRAVEL = ["None", "30 mins", "1 hour", 
+            //                "2 hours", "4 hours", "6 hours"];
+            
+            llOwnerSay("Travel time: " + message);
+            if (message == "30 mins") { allowMinutes = 30; }
+            else if (message == "1 hour") { allowMinutes = 60; }
+            else if (message == "2 hours") { allowMinutes = 120; }
+            else if (message == "4 hours") { allowMinutes = 240; }
+            else if (message == "6 hours") { allowMinutes = 360; }
+            else { allowMinutes = 0; }
+            
+            if (allowMinutes == 0) 
+            {
+                // If allowMinutes is zero, we just disable travel here.
+                travReq = llHTTPRequest(
+                    "http://magic.softweyr.com/api/tracker/v1",
+                    [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                    "{\"avid\":\"" + (string)gWearer + "\"," +
+                     "\"cmd\":\"settravel\"}");
+            }
+            else
+            {
+                // Otherwise, we have to solicit the recover time as well.
+                recoverHand = llListen(recoverChan, "", id, "");
+                string desc = llGetDisplayName(llGetOwner()) + " travel recovery time";
+                llDialog(id, desc, MENU_RECOVER, recoverChan);
+            }
+            llListenRemove(allowHand);
+        }
+        else if (chan == recoverChan)
+        {
+            // MENU_RECOVER = ["Hour", "SL Day", "RL Day", "Week"];
+            
+            llOwnerSay("Recover time: " + message);
+            integer recoverMinutes = 60;
+            if (message == "SL Day") { recoverMinutes = 240; }
+            else if (message == "RL Day") { recoverMinutes = 1440; }
+            else if (message == "Week") { recoverMinutes = 10080; }
+            travReq = llHTTPRequest(
+                "http://magic.softweyr.com/api/tracker/v1",
+                [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                "{\"avid\":\"" + (string)gWearer + "\"," +
+                 "\"cmd\":\"settravel\"," +
+                 "\"away\":" + (string)allowMinutes + "," +
+                 "\"recover\":" + (string)recoverMinutes + "}");
+            llOwnerSay("Requesting travel " + (string)allowMinutes + " / " + (string)recoverMinutes);
+            llListenRemove(recoverHand);
         }
         else if (chan == addOwnChan)
         {
@@ -329,6 +401,33 @@ default
                     [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
                     "{\"avid\":\"" + (string)gWearer + "\",\"cmd\":\"sethome\",\"home\":\"" + home + "\"}");
                 llOwnerSay("Set home to " + home);
+            }
+            else if (message == "Travel Time")
+            {
+                // Specify the wearer's travel times, if any.
+                allowHand = llListen(allowChan, "", id, "");  // Listen only to toucher
+                llDialog(id, "Select allowed travel time", MENU_LINGER, allowChan);
+                timerAllowChan = llGetUnixTime() + menuGraceTime;
+                
+//                travelReq = llHTTPRequest(
+//                    "http://magic.softweyr.com/api/tracker/v1",
+//                    [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+//                    "{\"avid\":\"" + (string)gWearer + "\"," +
+//                     "\"cmd\":\"travel\"}");
+            }
+            else if (message == "Travel")
+            {
+                // This requests travel permission.
+                // If granted, the travel timeout is stored
+                // in the server, so the response is only 
+                // use for wearer feedback.
+                
+                travelReq = llHTTPRequest(
+                    "http://magic.softweyr.com/api/tracker/v1",
+                    [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                    "{\"avid\":\"" + (string)gWearer + "\"," +
+                     "\"cmd\":\"travel\"}");
+                llOwnerSay("Travel");
             }
             // The next four are satisfyingly similar
             else if (message == "Lock")
@@ -440,11 +539,9 @@ default
             else if (message == "Add Sim")
             {
                 // Perms: Unlocked or Owner
-                
                 // This requires a secondary menu, to ask if the sim should have time limits.
-                
                 dwellHand = llListen(dwellChan, "", id, "");  // Listen only to toucher
-                llDialog(id, "Sim dwell time", MENU_SIM_DWELL, dwellChan);
+                llDialog(id, "Sim linger time", MENU_LINGER, dwellChan);
                 timerDwellChan = llGetUnixTime() + menuGraceTime;
             }
             
@@ -559,7 +656,25 @@ default
                 llOwnerSay("We got WTF for owners");
             }
         }
-        else if (id == tpReq) {
+        else if (id == travelReq) 
+        {
+            //llOwnerSay(body);
+            if (llJsonValueType(body, [(string)llGetOwner()]) == JSON_TRUE)
+            {
+                llOwnerSay("You many wander for a while");
+            }
+            else
+            {
+                llOwnerSay("No travel time available");
+            }
+        }
+        else if (id == travReq)
+        {
+            // User set a new home.  Do we need to do anything here?
+            llOwnerSay("travReq: " + body);
+        }
+        else if (id == tpReq) 
+        {
             //llOwnerSay(body);
             if (llJsonValueType(body, [(string)llGetOwner()]) == JSON_TRUE)
             {
@@ -576,17 +691,17 @@ default
         else if (id == homeReq)
         {
             // User set a new home.  Do we need to do anything here?
-            llOwnerSay(body);
+            llOwnerSay("homeReq: " + body);
         }
         else if (id == locReq)
         {
             // User added a location.  Do we need to do anything here?
-            llOwnerSay(body);
+            llOwnerSay("locReq: " + body);
         }
         else if (id == lockReq)
         {
             // This was a lock/unlock or track/untrack request
-            llOwnerSay(body);
+            llOwnerSay("lockReq: " + body);
         }
         else if (id == configReq)
         {
@@ -727,4 +842,3 @@ default
         }
     }
 }
-
