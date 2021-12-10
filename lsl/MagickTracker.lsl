@@ -91,6 +91,9 @@ integer menuHand;
 integer dwellChan;
 integer dwellHand;
 
+integer perChan;
+integer perHand;
+
 integer allowChan;
 integer allowHand;
 
@@ -125,9 +128,10 @@ integer timerRecoverChan;
 // Multi-stage data
 
 list ownerList;         // names of pending owners
-list nearbyAvis;     // ids of pending owners
+list nearbyAvis;        // ids of pending owners
 
-integer allowMinutes;
+integer dwellMinutes;   // per-sim minutes
+integer allowMinutes;   // travel minutes
 
 string BoolOf(integer val)
 {
@@ -145,9 +149,9 @@ default
         addOwnChan = menuChan - 1;
         delOwnChan = addOwnChan - 1;
         dwellChan = delOwnChan - 1;
-        allowChan = dwellChan -1;
+        perChan = dwellChan - 1;
+        allowChan = perChan -1;
         recoverChan = allowChan - 1;
-//        llOwnerSay("channels: " + (string)menuChan + ", " + (string)addOwnChan + ", " + (string)delOwnChan + ", " + (string)dwellChan + ", " + (string)allowChan);
 
         // Get our configuration
         configReq = llHTTPRequest(
@@ -259,24 +263,57 @@ default
             // MENU_LINGER = ["30 mins", "1 hour", "2 hours", "4 hours", "6 hours", "Unlimited"];
             
             llOwnerSay("Sim dwell time: " + message);
-            integer minutes = 0;
-            if (message == "30 mins") { minutes = 30; }
-            else if (message == "1 hour") { minutes = 60; }
-            else if (message == "2 hours") { minutes = 120; }
-            else if (message == "4 hours") { minutes = 240; }
-            else if (message == "6 hours") { minutes = 360; }
-            else { minutes = 0; }
 
+            if (message == "30 mins") { dwellMinutes = 30; }
+            else if (message == "1 hour") { dwellMinutes = 60; }
+            else if (message == "2 hours") { dwellMinutes = 120; }
+            else if (message == "4 hours") { dwellMinutes = 240; }
+            else if (message == "6 hours") { dwellMinutes = 360; }
+            else { dwellMinutes = 0; }
+
+            if (dwellMinutes == 0)
+            {
+                locReq = llHTTPRequest(
+                    "http://magic.softweyr.com/api/tracker/v1",
+                    [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                    "{\"avid\":\"" + (string)gWearer + "\"," +
+                     "\"cmd\":\"addloc\"," +
+                     "\"location\":\"" + llGetRegionName() + "\"}");
+                llOwnerSay("Adding " + llGetRegionName());
+            }
+            else // per?
+            {
+                // Otherwise, we have to solicit the recover time as well.
+                perHand = llListen(perChan, "", id, "");
+                string desc = llGetRegionName() + " per time";
+                llDialog(id, desc, MENU_RECOVER, perChan);
+            }
+
+            //llOwnerSay(llGetRegionName() + " being allowed?");
+            llListenRemove(dwellHand);
+        }
+        else if (chan == perChan)
+        {
+            // MENU_RECOVER = ["Hour", "SL Day", "RL Day", "Week"];
+            
+            llOwnerSay("Recover time: " + message);
+            
+            // NOTE: sim per time is in HOURS
+            integer perHours = 1;
+            if (message == "SL Day") { perHours = 4; }
+            else if (message == "RL Day") { perHours = 24; }
+            else if (message == "Week") { perHours = 168; }
+            
             locReq = llHTTPRequest(
                 "http://magic.softweyr.com/api/tracker/v1",
                 [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
                 "{\"avid\":\"" + (string)gWearer + "\"," +
                  "\"cmd\":\"addloc\"," +
-                 "\"location\":\"" + llGetRegionName() + "\"," + 
-                 "\"dwell\":\"" + (string)minutes + "\"}");
-
-            //llOwnerSay(llGetRegionName() + " being allowed?");
-            llListenRemove(dwellHand);
+                 "\"location\":\"" + llGetRegionName() + "\"," +
+                 "\"dwell\":" + (string)dwellMinutes + "," +
+                 "\"per\":" + (string)perHours + "}");
+            llOwnerSay("Adding " + llGetRegionName() + " :: " + (string)dwellMinutes + " / " + (string)perHours + " hrs");
+            llListenRemove(perHand);
         }
         else if (chan == allowChan)
         {
