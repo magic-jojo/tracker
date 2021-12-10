@@ -128,10 +128,11 @@ def arrive(avid, landing):
         if not row:
           return f"Uknown avatar: {avid}", 501
         locked = row[0]
+        expires = pendulum.instance(row[1], 'local')
+        print(f"locked: {locked}, travel: {expires}, now: {now}")
         if not locked:
           print("arrived safely, not locked")
           return {avid: True}
-        expires = pendulum.instance(row[1], 'local')
         if now < expires:
           print("arrived safely, in travel window")
           return {avid: True}
@@ -289,7 +290,7 @@ def settravel(avid, away=0, recover=0):
   try:
     with connect(dbname='tracker', user='jojo') as conn:
       with conn.cursor() as cursor:
-        cursor.execute('UPDATE users SET travel = %s, recover = %s WHERE avid = %s', [tt, rt, avid])
+        cursor.execute('UPDATE users SET travel = %s, recover = %s, expires = now(), recovers = now() WHERE avid = %s', [tt, rt, avid])
         return {avid: [tt, rt]}
   except Exception as e:
     print(f"Sharks! {e}") 
