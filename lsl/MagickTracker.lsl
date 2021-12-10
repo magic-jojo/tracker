@@ -750,95 +750,30 @@ default
                 lockout = FALSE;
                 llOwnerSay("lockout: " + (string)lockout);
             }
-            else
-            {
-                llOwnerSay("lockout is fucked, or LSL sucks tiny balls");
-            }
 
-            string ty = llJsonValueType(body, ["travel"]);
-            if (ty == JSON_NUMBER)
-            {
-                travel = (integer)llJsonGetValue(body, ["travel"]);
-                llOwnerSay("travel: " + (string)travel);
-            }
-            else
-            {
-                llOwnerSay("travel type is? ");
-            }
-
-            ty = llJsonValueType(body, ["recover"]);
-            if (ty == JSON_NUMBER)
-            {
-                recover = (integer)llJsonGetValue(body, ["recover"]);
-                llOwnerSay("recover: " + (string)recover);
-            }
-            else
-            {
-                llOwnerSay("recover type is? ");
-            }
+            recover = (integer)llJsonGetValue(body, ["recover"]);
+            llOwnerSay("recover: " + (string)recover);
             
-            ty = llJsonValueType(body, ["owners"]);
-            if (ty == JSON_ARRAY)
+            string ownStr = (string)llJsonGetValue(body, ["owners"]);
+            list ownlist = llParseString2List(ownStr, ["[", "]", "\"", ","], [""]);
+            integer n = llGetListLength(ownlist);
+            owners = [];
+            integer i;
+            for (i = 0; i < n; i++)
             {
-                llOwnerSay("me: " + (string)llGetOwner());
-                
-                llOwnerSay("owners is an array");
-                // The fucking LSL JSON parser is an absolute fucking
-                // pile of shit here.  It sends the owner list as an 
-                // array type, but retrieves it as a fucking string.
-                
-                string ownStr = (string)llJsonGetValue(body, ["owners"]);
-                llOwnerSay("ownStr: " + ownStr);
+                key owner = llList2Key(ownlist, i);
+                owners += owner;
+            }
+            llOwnerSay("owners: <" + llDumpList2String(owners, "><") + ">");
+            // Go find the owners names, too, for the "Del Owner" menu
+            ownCount = 0;
+            nameReq = llRequestDisplayName(llList2Key(owners, 0));
 
-                // Now what the blinding fuck do we do with that?
-                list ownlist = llParseString2List(ownStr, ["[", "]", "\"", ","], [""]);
-                llOwnerSay("ownlist: " + (string)ownlist);
-                integer n = llGetListLength(ownlist);
-                llOwnerSay("Found " + (string)n + " ownlist:");
-                
-                // Convert owners to keys and store
-                owners = [];
-                integer i;
-                for (i = 0; i < n; i++)
-                {
-                    key owner = llList2Key(ownlist, i);
-                    llOwnerSay("owner: " + (string)owner);
-                    owners += owner;
-                }
-                
-                llOwnerSay("owners: " + (string)owners);
-                
-                // Go find the owners names, too, for the "Del Owner" menu
-                
-                ownCount = 0;
-                nameReq = llRequestDisplayName(llList2Key(owners, 0));
-            }
-            else
-            {
-                llOwnerSay("owners type is? ");
-            }
-            
-            ty = llJsonValueType(body, ["locations"]);
-            if (ty == JSON_ARRAY)
-            {
-                llOwnerSay("locations is an array");
-                // Locations are structures, which we don't have in
-                // fucking LSL, so we'll turn them into a strided list.
-                // Ugh what a fucking dumbass scripting language.
-                list locs = (list)llJsonGetValue(body, ["locations"]);
-                llOwnerSay("locs (" + (string)llGetListLength(locs) + "): " + (string)locs);
-                // So now each element in locs should be a json map
-                //integer len = llGetListLength(locs);
-                //integer i;
-                //for (i = 0; i < len; i++)
-                //{
-                //    llOwnerSay((string)i + ": " + llList2String(locs, i));
-                //}
-            }
-            else
-            {
-                llOwnerSay("locations type is? ");
-            }
+            //llOwnerSay("locations is an array: figure out the fucking names");
+            string locsStr = (string)llJsonGetValue(body, ["locations"]);
+            locations = llParseString2List(locsStr, ["[", "]", "\"", ","], [""]);
+            llOwnerSay("locations: <" + llDumpList2String(locations, "><") + ">");
         }
     }
 }
+

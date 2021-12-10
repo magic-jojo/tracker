@@ -131,10 +131,10 @@ def arrive(avid, landing):
         expires = pendulum.instance(row[1], 'local')
         print(f"locked: {locked}, travel: {expires}, now: {now}")
         if not locked:
-          print("arrived safely, not locked")
+          print("arrived safely: not locked")
           return {avid: True}
         if now < expires:
-          print("arrived safely, in travel window")
+          print("arrived safely: in travel window")
           return {avid: True}
         # Is this an allowed location (and in time window?)
         cursor.execute(
@@ -455,15 +455,14 @@ def get(avid):
           for row in row2:
             # print(row)
             result['owners'].append(row[0])
-          cursor.execute('SELECT location, dwell, per FROM locations WHERE avid = %s', [avid, ])
+          # Only send location names
+          # The LSL json parser is too fucking stupid to handle
+          # any more, and all we need are the names for delete.
+          cursor.execute('SELECT location FROM locations WHERE avid = %s', [avid, ])
           row3 = cursor.fetchall()
           # print(row3)
           for row in row3:
-            result['locations'].append({
-              'location': row[0],
-              'dwell': row[1],
-              'per': row[2]
-            })
+            result['locations'].append(row[0])
         else:
           result = create(conn, avid)
         return result
