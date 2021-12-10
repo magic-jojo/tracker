@@ -112,6 +112,12 @@ integer tpGraceTime = 60;   // Seconds before you get the boot
 integer menuGraceTime = 30; // How long menus wait for a decision
 integer maxOwnerDist = 10;
 
+// Prims we make GLOW to indicate activity or state
+
+integer PRIM_ANTENNA = 5;
+integer PRIM_GREEN_LED = 4;
+integer PRIM_RED_LED = 3;
+
 // timer values, expressed in "unix" time
 // TP home, set when the avi enters an unpermitted sim,
 // reset when avi enters a permitted sim.
@@ -158,6 +164,7 @@ default
             "http://magic.softweyr.com/api/tracker/v1",
             [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
             "{\"avid\":\"" + (string)gWearer + "\",\"cmd\":\"get\"}");
+        llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
         
         // Zero out any timers, then start the timer tick
         timerTP = 0;
@@ -184,6 +191,7 @@ default
                     "{\"avid\":\"" + (string)llGetOwner() + "\"," +
                      "\"cmd\":\"arrive\", " +
                      "\"landing\":\"" + llGetRegionName() + "\"}");
+                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
             }
             if (tracking)
             {
@@ -279,6 +287,7 @@ default
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"addloc\"," +
                      "\"location\":\"" + llGetRegionName() + "\"}");
+                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
                 llOwnerSay("Adding " + llGetRegionName());
             }
             else // per?
@@ -312,6 +321,7 @@ default
                  "\"location\":\"" + llGetRegionName() + "\"," +
                  "\"dwell\":" + (string)dwellMinutes + "," +
                  "\"per\":" + (string)perHours + "}");
+            llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
             llOwnerSay("Adding " + llGetRegionName() + " :: " + (string)dwellMinutes + " / " + (string)perHours + " hrs");
             llListenRemove(perHand);
         }
@@ -336,6 +346,7 @@ default
                     [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"settravel\"}");
+                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
             }
             else
             {
@@ -362,6 +373,7 @@ default
                  "\"cmd\":\"settravel\"," +
                  "\"away\":" + (string)allowMinutes + "," +
                  "\"recover\":" + (string)recoverMinutes + "}");
+            llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
             llOwnerSay("Requesting travel " + (string)allowMinutes + " / " + (string)recoverMinutes);
             llListenRemove(recoverHand);
         }
@@ -389,6 +401,7 @@ default
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"addowner\"," +
                      "\"owner\":\"" + (string)newOwner + "\"}");
+                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
             }
             llListenRemove(addOwnHand);
         }
@@ -419,6 +432,7 @@ default
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"delowner\"," +
                      "\"owner\":\"" + (string)newOwner + "\"}");
+                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
             }
             llListenRemove(delOwnHand);
         }
@@ -437,6 +451,7 @@ default
                     "http://magic.softweyr.com/api/tracker/v1",
                     [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
                     "{\"avid\":\"" + (string)gWearer + "\",\"cmd\":\"sethome\",\"home\":\"" + home + "\"}");
+                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
                 llOwnerSay("Set home to " + home);
             }
             else if (message == "Travel Time")
@@ -451,6 +466,7 @@ default
 //                    [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
 //                    "{\"avid\":\"" + (string)gWearer + "\"," +
 //                     "\"cmd\":\"travel\"}");
+//                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
             }
             else if (message == "Travel")
             {
@@ -464,6 +480,7 @@ default
                     [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"travel\"}");
+                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
                 llOwnerSay("Travel");
             }
             // The next four are satisfyingly similar
@@ -475,6 +492,7 @@ default
                     [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"lock\"}");
+                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
                 llOwnerSay("Locked");
             }
             else if (message == "Unlock")
@@ -486,6 +504,7 @@ default
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"lock\"," +
                      "\"state\":\"false\"}");
+                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
                 llOwnerSay("Unlocked");
             }
             else if (message == "Track")
@@ -496,6 +515,7 @@ default
                     [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"track\"}");
+                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
                 llOwnerSay("Tracking");
             }
             else if (message == "Untrack")
@@ -507,6 +527,7 @@ default
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"track\"," +
                      "\"state\":\"false\"}");
+                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
                 llOwnerSay("Untracked");
             }
             else if (message == "Add Own")
@@ -616,6 +637,7 @@ default
             "http://magic.softweyr.com/api/tracker/v1",
             [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
             "{\"avid\":\"" + (string)gWearer + "\",\"cmd\":\"get\"}");
+        llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
     }
     
     timer()
@@ -653,6 +675,9 @@ default
 
     http_response(key id, integer status, list metadata, string body)
     {
+        // Stop the glow on the antenna, we're off the air.
+        llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [ PRIM_GLOW, ALL_SIDES, 0.0 ]);
+
         // Owner added or deleted; the response is the same to both:
         // the complete current list of owners.  Save the list, then
         // start getting their names from the dataserver.
@@ -750,11 +775,13 @@ default
             {
                 locked = TRUE;
                 llOwnerSay("locked: " + (string)locked);
+                llSetLinkPrimitiveParamsFast(PRIM_RED_LED, [PRIM_GLOW, ALL_SIDES, 0.80]);
             }
             else if (llJsonValueType(body, ["locked"]) == JSON_FALSE)
             {
                 locked = FALSE;
                 llOwnerSay("locked: " + (string)locked);
+                llSetLinkPrimitiveParamsFast(PRIM_RED_LED, [PRIM_GLOW, ALL_SIDES, 0.0]);
             }
             else
             {
@@ -765,11 +792,13 @@ default
             {
                 tracking = TRUE;
                 llOwnerSay("tracking: " + (string)tracking);
+                llSetLinkPrimitiveParamsFast(PRIM_GREEN_LED, [PRIM_GLOW, ALL_SIDES, 0.80]);
             }
             else if (llJsonValueType(body, ["tracking"]) == JSON_FALSE)
             {
                 locked = FALSE;
                 llOwnerSay("tracking: " + (string)tracking);
+                llSetLinkPrimitiveParamsFast(PRIM_GREEN_LED, [PRIM_GLOW, ALL_SIDES, 0.0]);
             }
             else
             {
@@ -813,4 +842,3 @@ default
         }
     }
 }
-
