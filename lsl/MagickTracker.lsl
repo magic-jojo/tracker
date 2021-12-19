@@ -128,6 +128,7 @@ float GLOW_OFF = 0.0;
 float BELL_SOUND_VOLUME = 1.0;
 float LOCK_SOUND_VOLUME = 1.0;
 float TRACK_SOUND_VOLUME = 0.75;
+float TRAVEL_SOUND_VOLUME = 0.80;
 
 // timer values, expressed in "unix" time
 // TP home, set when the avi enters an unpermitted sim,
@@ -155,6 +156,7 @@ string BoolOf(integer val)
     if (val) { return "Yes"; }
     return "No";
 }
+
 
 default
 {
@@ -216,13 +218,11 @@ default
         
         if (llDetectedKey(0) == llGetOwner())
         {
-            //llOwnerSay("Touched by wearer");
-
-            // Wearer menu.  This depends on whether we are locked or not.
+            // Which wearer menu.  This depends on tracker states owned and locked.
+            
             menuHand = llListen(menuChan, "", llGetOwner(), "");  // Listen only to wearer
             timerMenuChan = llGetUnixTime() + menuGraceTime;
 
-            // Unowned?
             if (!locked)
             {
                 // Unlocked wearer menu is identical to the owner menu
@@ -230,7 +230,7 @@ default
             }
             else if (llGetListLength(owners) == 0)
             {
-                //llOwnerSay("Wearer is locked but unowned");
+                //llOwnerSay("Wearer is self-locked (unowned)");
                 llDialog(llGetOwner(), "Unowned wearer menu", MENU_WEARER_LOCK_UNOWN, menuChan);
             }
             else
@@ -253,7 +253,7 @@ default
             }
             else
             {
-                llInstantMessage(toucher, llGetDisplayName(toucher) + " is operating your tracker");
+                llInstantMessage(llGetOwner(), llGetDisplayName(toucher) + " is operating your tracker");
                 
                 menuHand = llListen(menuChan, "", toucher, "");
                 string statmsg = llGetDisplayName(llGetOwner()) + "'s Tracker\n" +
@@ -444,7 +444,6 @@ default
                     "{\"avid\":\"" + (string)gWearer + "\",\"cmd\":\"sethome\",\"home\":\"" + home + "\"}");
                 llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
                 llTriggerSound("Doorbell", BELL_SOUND_VOLUME);
-                llInstantMessage(llGetOwner(), "Set home here (" + home + ")");
             }
             else if (message == "Travel Time")
             {
@@ -467,7 +466,6 @@ default
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"travel\"}");
                 llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
-                llInstantMessage(llGetOwner(), "Travel requested");
             }
             // The next four are satisfyingly similar
             else if (message == "Lock")
@@ -480,7 +478,6 @@ default
                      "\"cmd\":\"lock\"}");
                 llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
                 llSetLinkPrimitiveParamsFast(PRIM_GREEN_LED, [PRIM_GLOW, ALL_SIDES, GLOW_GREEN]);
-                //llOwnerSay("Locked");
                 llTriggerSound("Locking", LOCK_SOUND_VOLUME);
             }
             else if (message == "Unlock")
@@ -494,7 +491,6 @@ default
                      "\"state\":\"false\"}");
                 llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
                 llSetLinkPrimitiveParamsFast(PRIM_GREEN_LED, [PRIM_GLOW, ALL_SIDES, GLOW_OFF]);
-                //llOwnerSay("Unlocked");
                 llTriggerSound("Unlocking", LOCK_SOUND_VOLUME);
             }
             else if (message == "Track")
@@ -507,7 +503,6 @@ default
                      "\"cmd\":\"track\"}");
                 llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
                 llSetLinkPrimitiveParamsFast(PRIM_RED_LED, [PRIM_GLOW, ALL_SIDES, GLOW_RED]);
-                //llOwnerSay("Tracking");
                 llTriggerSound("Tracking", TRACK_SOUND_VOLUME);
             }
             else if (message == "Untrack")
@@ -521,7 +516,6 @@ default
                      "\"state\":\"false\"}");
                 llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
                 llSetLinkPrimitiveParamsFast(PRIM_RED_LED, [PRIM_GLOW, ALL_SIDES, GLOW_OFF]);
-                //llOwnerSay("Untracked");
                 llTriggerSound("Untracking", TRACK_SOUND_VOLUME);
             }
             else if (message == "Add Own")
@@ -532,8 +526,7 @@ default
                 
                 // Remove me from the list
                 integer p = llListFindList(avis, [llGetOwner()]);
-                if (p != -1)
-                    avis = llDeleteSubList(avis, p, p);
+                if (p != -1) { avis = llDeleteSubList(avis, p, p); }
                 
                 integer numberOfKeys = llGetListLength(avis);
  
@@ -724,11 +717,11 @@ default
             //llOwnerSay(body);
             if (llJsonValueType(body, [(string)llGetOwner()]) == JSON_TRUE)
             {
-                llOwnerSay("You many wander for a while");
+                llTriggerSound("Swoosh", TRAVEL_SOUND_VOLUME);
             }
             else
             {
-                llOwnerSay("No travel time available");
+                llTriggerSound("Denied", TRAVEL_SOUND_VOLUME);
             }
         }
         else if (id == travReq)
