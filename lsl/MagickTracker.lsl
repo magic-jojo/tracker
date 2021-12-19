@@ -248,7 +248,7 @@ default
             }
             else
             {
-                llOwnerSay(llList2String(ownNames, i) + " is operating your tracker");
+                llInstantMessage(toucher, llGetDisplayName(toucher) + " is operating your tracker");
                 
                 menuHand = llListen(menuChan, "", toucher, "");
                 string statmsg = llGetDisplayName(llGetOwner()) + "'s Tracker\n" +
