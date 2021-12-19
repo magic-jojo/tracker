@@ -49,7 +49,7 @@ list ownerMenu()
     if (locked)
     {
         i = llListFindList(menu, ["Lock"]);
-        llOwnerSay("Menu: Lock at: " + (string)i);
+        //llOwnerSay("Menu: Lock at: " + (string)i);
         menu = llListReplaceList(menu, ["Unlock"], i, i);
     }
     else
@@ -59,12 +59,12 @@ list ownerMenu()
     if (tracking)
     {
         i = llListFindList(menu, ["Track"]);
-        llOwnerSay("Menu: Track at: " + (string)i);
+        //llOwnerSay("Menu: Track at: " + (string)i);
         menu = llListReplaceList(menu, ["Untrack"], i, i);
     }
     else
     {
-        llOwnerSay("Menu: Untracked");
+        //llOwnerSay("Menu: Untracked");
     }
     return menu;
 }
@@ -112,11 +112,17 @@ integer tpGraceTime = 60;   // Seconds before you get the boot
 integer menuGraceTime = 30; // How long menus wait for a decision
 integer maxOwnerDist = 10;
 
-// Prims we make GLOW to indicate activity or state
+// Prims we make GLOW to indicate activity or state,
+// and their relative GLOW states, because colors show
+// glow differently.
 
 integer PRIM_ANTENNA = 5;
 integer PRIM_GREEN_LED = 4;
 integer PRIM_RED_LED = 3;
+
+float GLOW_ANTENNA = 1.0;
+float GLOW_GREEN = 0.75;
+float GLOW_RED = 0.90;
 
 // timer values, expressed in "unix" time
 // TP home, set when the avi enters an unpermitted sim,
@@ -164,7 +170,7 @@ default
             "http://magic.softweyr.com/api/tracker/v1",
             [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
             "{\"avid\":\"" + (string)gWearer + "\",\"cmd\":\"get\"}");
-        llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
+        llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
         
         // Zero out any timers, then start the timer tick
         timerTP = 0;
@@ -180,7 +186,8 @@ default
     {
         if (change & CHANGED_TELEPORT) //note that it's & and not &&... it's bitwise!
         {
-            llOwnerSay("changed, locked = " + (string)locked + ", tracking = " + (string)tracking);
+            //llOwnerSay("changed, locked = " + (string)locked + 
+            //           ", tracking = " + (string)tracking);
             
             if (locked)
             {
@@ -191,65 +198,53 @@ default
                     "{\"avid\":\"" + (string)llGetOwner() + "\"," +
                      "\"cmd\":\"arrive\", " +
                      "\"landing\":\"" + llGetRegionName() + "\"}");
-                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
+                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
             }
-            if (tracking)
-            {
-                llOwnerSay("Tracking for: " + (string)owners);
-                string where = llGetRegionName();
-                string who = llGetDisplayName(llGetOwner());
-                integer l = llGetListLength(owners);
-                integer i;
-                for (i = 0; i < l; i++)
-                {
-                    key owner = (key)llList2Key(owners, i);
-                    string message = who + " arrived at " + where;
-                    //llOwnerSay("IM("  + (string)owner + ", '" + message + "')");
-                    llInstantMessage(owner, message);
-                }
-            }
+            // Do tracking when we know if this sim is permitted or not.
         }
     }
     
     touch_start(integer num)
     {
         key toucher = llDetectedKey(0);
-        llOwnerSay("Touch start by " + (string)toucher);
+        //llOwnerSay("Touch start by " + (string)toucher);
         
         if (llDetectedKey(0) == llGetOwner())
         {
-            llOwnerSay("Touched by wearer");
+            //llOwnerSay("Touched by wearer");
 
             // Wearer menu.  This depends on whether we are locked or not.
             menuHand = llListen(menuChan, "", llGetOwner(), "");  // Listen only to wearer
             timerMenuChan = llGetUnixTime() + menuGraceTime;
-            if (locked)
+
+            // Unowned?
+            if (!locked)
             {
-                llOwnerSay("Wearer is locked");
-                
-                // Unowned?
-                if (llGetListLength(owners) == 0)
-                {
-                    llOwnerSay("Wearer is unowned");
-                    llDialog(llGetOwner(), "Locked wearer menu", MENU_WEARER_LOCK_UNOWN, menuChan);
-                }
-                else
-                { 
-                    llOwnerSay("Wearer is Owned");
-                    llDialog(llGetOwner(), "Unowned wearer menu", MENU_WEARER_LOCK, menuChan);
-                }
+                // Unlocked wearer menu is identical to the owner menu
+                llDialog(llGetOwner(), "Unlocked wearer menu", ownerMenu(), menuChan);
+            }
+            else if (llGetListLength(owners) == 0)
+            {
+                //llOwnerSay("Wearer is locked but unowned");
+                llDialog(llGetOwner(), "Unowned wearer menu", MENU_WEARER_LOCK_UNOWN, menuChan);
             }
             else
             {
-                llDialog(llGetOwner(), "Unlocked wearer menu", ownerMenu(), menuChan);
+                //llOwnerSay("Wearer is owned and locked");
+                llDialog(llGetOwner(), "Locked wearer menu", MENU_WEARER_LOCK, menuChan);
             }
         }
         else
         {
             integer i = llListFindList(owners, [toucher]);
-            if (i == -1)
+            if (i < 0)
             {
-                llOwnerSay(llGetDisplayName(toucher) + " is not allowed to operate your tracker");
+                llInstantMessage(toucher, "You are not allowed to operate " +
+                                 llGetDisplayName(llGetOwner()) + "s tracker");
+                llInstantMessage(llGetOwner(),
+                                 llGetDisplayName(toucher) +
+                                 " is not allowed to operate your tracker");
+                //llOwnerSay(llGetDisplayName(toucher) + " is not allowed to operate your tracker");
             }
             else
             {
@@ -268,9 +263,7 @@ default
     {
         if (chan == dwellChan)
         {
-            // MENU_LINGER = ["30 mins", "1 hour", "2 hours", "4 hours", "6 hours", "Unlimited"];
-            
-            llOwnerSay("Sim dwell time: " + message);
+            //llOwnerSay("Sim dwell time: " + message);
 
             if (message == "30 mins") { dwellMinutes = 30; }
             else if (message == "1 hour") { dwellMinutes = 60; }
@@ -287,8 +280,8 @@ default
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"addloc\"," +
                      "\"location\":\"" + llGetRegionName() + "\"}");
-                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
-                llOwnerSay("Adding " + llGetRegionName());
+                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
+                //llOwnerSay("Adding " + llGetRegionName());
             }
             else // per?
             {
@@ -303,10 +296,7 @@ default
         }
         else if (chan == perChan)
         {
-            // MENU_RECOVER = ["Hour", "SL Day", "RL Day", "Week"];
-            
-            llOwnerSay("Recover time: " + message);
-            
+            //llOwnerSay("Recover time: " + message);
             // NOTE: sim per time is in HOURS
             integer perHours = 1;
             if (message == "SL Day") { perHours = 4; }
@@ -321,16 +311,14 @@ default
                  "\"location\":\"" + llGetRegionName() + "\"," +
                  "\"dwell\":" + (string)dwellMinutes + "," +
                  "\"per\":" + (string)perHours + "}");
-            llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
-            llOwnerSay("Adding " + llGetRegionName() + " :: " + (string)dwellMinutes + " / " + (string)perHours + " hrs");
+            llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
+            //llOwnerSay("Adding " + llGetRegionName() + " :: " + 
+            //           (string)dwellMinutes + " / " + (string)perHours + " hrs");
             llListenRemove(perHand);
         }
         else if (chan == allowChan)
         {
-            // MENU_TRAVEL = ["None", "30 mins", "1 hour", 
-            //                "2 hours", "4 hours", "6 hours"];
-            
-            llOwnerSay("Travel time: " + message);
+            //llOwnerSay("Travel time: " + message);
             if (message == "30 mins") { allowMinutes = 30; }
             else if (message == "1 hour") { allowMinutes = 60; }
             else if (message == "2 hours") { allowMinutes = 120; }
@@ -346,7 +334,7 @@ default
                     [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"settravel\"}");
-                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
+                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
             }
             else
             {
@@ -359,9 +347,7 @@ default
         }
         else if (chan == recoverChan)
         {
-            // MENU_RECOVER = ["Hour", "SL Day", "RL Day", "Week"];
-            
-            llOwnerSay("Recover time: " + message);
+            //llOwnerSay("Recover time: " + message);
             integer recoverMinutes = 60;
             if (message == "SL Day") { recoverMinutes = 240; }
             else if (message == "RL Day") { recoverMinutes = 1440; }
@@ -373,13 +359,14 @@ default
                  "\"cmd\":\"settravel\"," +
                  "\"away\":" + (string)allowMinutes + "," +
                  "\"recover\":" + (string)recoverMinutes + "}");
-            llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
-            llOwnerSay("Requesting travel " + (string)allowMinutes + " / " + (string)recoverMinutes);
+            llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
+            //llOwnerSay("Requesting travel " + (string)allowMinutes + 
+            //           " / " + (string)recoverMinutes);
             llListenRemove(recoverHand);
         }
         else if (chan == addOwnChan)
         {
-            llOwnerSay("New owner: " + message);
+            // llOwnerSay("New owner: " + message);
             
             // Find the selected name in the name list
             // This is such a totally fucking stupid way to do this,
@@ -393,21 +380,20 @@ default
             else
             {
                 key newOwner = llList2Key(nearbyAvis, i);
-                llOwnerSay("Owner: " + llList2String(ownerList, i) + " : " + (string)newOwner);
-                
+                //llOwnerSay("Owner: " + llList2String(ownerList, i) + " : " + (string)newOwner);
                 ownReq = llHTTPRequest(
                     "http://magic.softweyr.com/api/tracker/v1",
                     [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"addowner\"," +
                      "\"owner\":\"" + (string)newOwner + "\"}");
-                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
+                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
             }
             llListenRemove(addOwnHand);
         }
         else if (chan == delOwnChan)
         {
-            llOwnerSay("Del owner: " + message);
+            // llOwnerSay("Del owner: " + message);
             
             // Find the selected name in the name list
             // This is such a totally fucking stupid way to do this,
@@ -424,7 +410,7 @@ default
             else
             {
                 key newOwner = llList2Key(owners, i);
-                llOwnerSay("Owner: " + message + " : " + (string)newOwner);
+                //llOwnerSay("Owner: " + message + " : " + (string)newOwner);
                 
                 ownReq = llHTTPRequest(
                     "http://magic.softweyr.com/api/tracker/v1",
@@ -432,7 +418,7 @@ default
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"delowner\"," +
                      "\"owner\":\"" + (string)newOwner + "\"}");
-                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
+                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
             }
             llListenRemove(delOwnHand);
         }
@@ -451,8 +437,8 @@ default
                     "http://magic.softweyr.com/api/tracker/v1",
                     [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
                     "{\"avid\":\"" + (string)gWearer + "\",\"cmd\":\"sethome\",\"home\":\"" + home + "\"}");
-                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
-                llOwnerSay("Set home to " + home);
+                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
+                //llOwnerSay("Set home to " + home);
             }
             else if (message == "Travel Time")
             {
@@ -460,13 +446,7 @@ default
                 allowHand = llListen(allowChan, "", id, "");  // Listen only to toucher
                 llDialog(id, "Select allowed travel time", MENU_LINGER, allowChan);
                 timerAllowChan = llGetUnixTime() + menuGraceTime;
-                
-//                travelReq = llHTTPRequest(
-//                    "http://magic.softweyr.com/api/tracker/v1",
-//                    [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
-//                    "{\"avid\":\"" + (string)gWearer + "\"," +
-//                     "\"cmd\":\"travel\"}");
-//                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
+                // Server call after second dialog
             }
             else if (message == "Travel")
             {
@@ -480,8 +460,8 @@ default
                     [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"travel\"}");
-                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
-                llOwnerSay("Travel");
+                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
+                llOwnerSay("Travel requested");
             }
             // The next four are satisfyingly similar
             else if (message == "Lock")
@@ -492,7 +472,7 @@ default
                     [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"lock\"}");
-                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
+                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
                 llOwnerSay("Locked");
             }
             else if (message == "Unlock")
@@ -504,7 +484,7 @@ default
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"lock\"," +
                      "\"state\":\"false\"}");
-                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
+                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
                 llOwnerSay("Unlocked");
             }
             else if (message == "Track")
@@ -515,7 +495,7 @@ default
                     [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"track\"}");
-                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
+                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
                 llOwnerSay("Tracking");
             }
             else if (message == "Untrack")
@@ -527,7 +507,7 @@ default
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"track\"," +
                      "\"state\":\"false\"}");
-                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
+                llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
                 llOwnerSay("Untracked");
             }
             else if (message == "Add Own")
@@ -552,7 +532,8 @@ default
                 for (i = 0; i < numberOfKeys; ++i)
                 {
                     avi = llList2Key(avis, i);
-                    dist = llRound(llVecDist(currentPos, llList2Vector(llGetObjectDetails(avi, [OBJECT_POS]), 0)));
+                    dist = llRound(llVecDist(currentPos,
+                                   llList2Vector(llGetObjectDetails(avi, [OBJECT_POS]), 0)));
                     if (dist <= maxOwnerDist)
                         avilist += [dist, avi];
                 }
@@ -565,19 +546,25 @@ default
                 nearbyAvis = [];
 
                 integer nitems = numberOfKeys;
-                if (12 < numberOfKeys)
-                    nitems = 12;
+                integer count = 0;
                     
                 for (i = 0; i < (nitems * 2); i += 2)
                 {
                     key avatar = llList2Key(avilist, i+1);
                     string name = llGetDisplayName(avatar);
                     integer dist = llList2Integer(avilist, i);
-                    llOwnerSay(name + " @ " + (string)dist + "m");
-                    ownerList += name;
-                    nearbyAvis += avatar;
+                    // Skip owners, we don't need to re-add them
+                    if (llListFindList(owners, [avatar]) == -1)
+                    {
+                        //llOwnerSay(name + " @ " + (string)dist + "m");
+                        ownerList += name;
+                        nearbyAvis += avatar;
+                        count += 1;
+                        if (count == 12) jump maxxedOut;
+                    }
                 }
                 
+                @maxxedOut;
                 addOwnHand = llListen(addOwnChan, "", llGetOwner(), "");
                 llDialog(llGetOwner(), "Choose new Owner", ownerList, addOwnChan);
                 timerAddOwnChan = llGetUnixTime() + menuGraceTime;
@@ -614,7 +601,7 @@ default
         
         if (nameReq == qId)
         {
-            llSay(0, "Display name[" + (string)ownCount + "] is " + data);
+            //llSay(0, "Display name[" + (string)ownCount + "] is " + data);
             ownNames += data;
             ownCount += 1;
             if (ownCount < llGetListLength(owners)) {
@@ -637,7 +624,7 @@ default
             "http://magic.softweyr.com/api/tracker/v1",
             [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
             "{\"avid\":\"" + (string)gWearer + "\",\"cmd\":\"get\"}");
-        llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, 0.80]);
+        llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
     }
     
     timer()
@@ -699,7 +686,7 @@ default
                 for (i = 0; i < n; i++)
                 {
                     key owner = llList2Key(ownlist, i);
-//                    llOwnerSay("owner: " + (string)owner);
+                    //llOwnerSay("owner: " + (string)owner);
                     owners += owner;
                 }
                 
@@ -738,16 +725,34 @@ default
         else if (id == tpReq) 
         {
             //llOwnerSay(body);
+            string permitted;
             if (llJsonValueType(body, [(string)llGetOwner()]) == JSON_TRUE)
             {
                 llOwnerSay("Welcome to " + llGetRegionName());
                 timerTP = 0;
+                permitted = "permitted";
             }
             else
             {
                 llOwnerSay("You are not allowed in " + llGetRegionName() + 
                     ", booting in " + (string)tpGraceTime + " seconds");
                 timerTP = llGetUnixTime() + tpGraceTime;
+                permitted = "forbidden";
+            }
+            if (tracking)
+            {
+                //llOwnerSay("Tracking for: " + (string)owners);
+                string where = llGetRegionName();
+                string who = llGetDisplayName(llGetOwner());
+                integer l = llGetListLength(owners);
+                integer i;
+                for (i = 0; i < l; i++)
+                {
+                    key owner = (key)llList2Key(owners, i);
+                    string message = who + " arrived at " + permitted + " location " + where;
+                    //llOwnerSay("IM("  + (string)owner + ", '" + message + "')");
+                    llInstantMessage(owner, message);
+                }
             }
         }
         else if (id == homeReq)
@@ -767,58 +772,55 @@ default
         }
         else if (id == configReq)
         {
-            //llOwnerSay(body);
+            llOwnerSay(body);
             home = llJsonGetValue(body, ["home"]);
-            llOwnerSay("home: " + home);
+            //llOwnerSay("home: " + home);
             
             if (llJsonValueType(body, ["locked"]) == JSON_TRUE)
             {
                 locked = TRUE;
-                llOwnerSay("locked: " + (string)locked);
-                llSetLinkPrimitiveParamsFast(PRIM_RED_LED, [PRIM_GLOW, ALL_SIDES, 0.80]);
+                llSetLinkPrimitiveParamsFast(PRIM_RED_LED, [PRIM_GLOW, ALL_SIDES, GLOW_RED]);
             }
             else if (llJsonValueType(body, ["locked"]) == JSON_FALSE)
             {
                 locked = FALSE;
-                llOwnerSay("locked: " + (string)locked);
                 llSetLinkPrimitiveParamsFast(PRIM_RED_LED, [PRIM_GLOW, ALL_SIDES, 0.0]);
             }
             else
             {
                 llOwnerSay("Lock is fucked, or LSL sucks tiny balls");
             }
+            //llOwnerSay("locked: " + (string)locked);
             
             if (llJsonValueType(body, ["tracking"]) == JSON_TRUE)
             {
                 tracking = TRUE;
-                llOwnerSay("tracking: " + (string)tracking);
-                llSetLinkPrimitiveParamsFast(PRIM_GREEN_LED, [PRIM_GLOW, ALL_SIDES, 0.80]);
+                llSetLinkPrimitiveParamsFast(PRIM_GREEN_LED, [PRIM_GLOW, ALL_SIDES, GLOW_GREEN]);
             }
             else if (llJsonValueType(body, ["tracking"]) == JSON_FALSE)
             {
                 locked = FALSE;
-                llOwnerSay("tracking: " + (string)tracking);
                 llSetLinkPrimitiveParamsFast(PRIM_GREEN_LED, [PRIM_GLOW, ALL_SIDES, 0.0]);
             }
             else
             {
                 llOwnerSay("tracking is fucked, or LSL sucks tiny balls");
             }
+            //llOwnerSay("tracking: " + (string)tracking);
             
             string lo = llJsonValueType(body, ["lockout"]);
             if (lo == JSON_TRUE)
             {
                 lockout = TRUE;
-                llOwnerSay("lockout: " + (string)lockout);
             }
             else if (lo == JSON_FALSE)
             {
                 lockout = FALSE;
-                llOwnerSay("lockout: " + (string)lockout);
             }
+            //llOwnerSay("lockout: " + (string)lockout);
 
             recover = (integer)llJsonGetValue(body, ["recover"]);
-            llOwnerSay("recover: " + (string)recover);
+            //llOwnerSay("recover: " + (string)recover);
             
             string ownStr = (string)llJsonGetValue(body, ["owners"]);
             list ownlist = llParseString2List(ownStr, ["[", "]", "\"", ","], [""]);
@@ -830,7 +832,7 @@ default
                 key owner = llList2Key(ownlist, i);
                 owners += owner;
             }
-            llOwnerSay("owners: <" + llDumpList2String(owners, "><") + ">");
+            //llOwnerSay("owners: <" + llDumpList2String(owners, "><") + ">");
             // Go find the owners names, too, for the "Del Owner" menu
             ownCount = 0;
             nameReq = llRequestDisplayName(llList2Key(owners, 0));
@@ -838,7 +840,8 @@ default
             //llOwnerSay("locations is an array: figure out the fucking names");
             string locsStr = (string)llJsonGetValue(body, ["locations"]);
             locations = llParseString2List(locsStr, ["[", "]", "\"", ","], [""]);
-            llOwnerSay("locations: <" + llDumpList2String(locations, "><") + ">");
+            //llOwnerSay("locations: <" + llDumpList2String(locations, "><") + ">");
         }
     }
 }
+
