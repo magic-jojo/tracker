@@ -37,7 +37,7 @@ integer ownCount;
 
 list MENU_OWNER = ["TP Home", "Add Sim", "Del Sim", 
                    "Lock", "Add Own", "Del Own", 
-                   "Track", "Travel Time"];
+                   "Track", "Travel Time", "Set Home"];
 
 // Customize the owner menu for the current state
 // Do it the safe way.
@@ -123,6 +123,9 @@ integer PRIM_RED_LED = 3;
 float GLOW_ANTENNA = 1.0;
 float GLOW_GREEN = 0.75;
 float GLOW_RED = 0.90;
+float GLOW_OFF = 0.0;
+
+float LOCK_SOUND_VOLUME = 1.0;
 
 // timer values, expressed in "unix" time
 // TP home, set when the avi enters an unpermitted sim,
@@ -438,7 +441,7 @@ default
                     [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
                     "{\"avid\":\"" + (string)gWearer + "\",\"cmd\":\"sethome\",\"home\":\"" + home + "\"}");
                 llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
-                //llOwnerSay("Set home to " + home);
+                llInstantMessage(llGetOwner(), "Set home here (" + home + ")");
             }
             else if (message == "Travel Time")
             {
@@ -461,7 +464,7 @@ default
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"travel\"}");
                 llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
-                llOwnerSay("Travel requested");
+                llInstantMessage(llGetOwner(), "Travel requested");
             }
             // The next four are satisfyingly similar
             else if (message == "Lock")
@@ -473,7 +476,9 @@ default
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"lock\"}");
                 llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
-                llOwnerSay("Locked");
+                llSetLinkPrimitiveParamsFast(PRIM_GREEN_LED, [PRIM_GLOW, ALL_SIDES, GLOW_GREEN]);
+                //llOwnerSay("Locked");
+                llTriggerSound("Locking", LOCK_SOUND_VOLUME);
             }
             else if (message == "Unlock")
             {
@@ -485,7 +490,9 @@ default
                      "\"cmd\":\"lock\"," +
                      "\"state\":\"false\"}");
                 llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
-                llOwnerSay("Unlocked");
+                llSetLinkPrimitiveParamsFast(PRIM_GREEN_LED, [PRIM_GLOW, ALL_SIDES, GLOW_OFF]);
+                //llOwnerSay("Unlocked");
+                llTriggerSound("Unlocking", LOCK_SOUND_VOLUME);
             }
             else if (message == "Track")
             {
@@ -496,7 +503,9 @@ default
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"track\"}");
                 llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
-                llOwnerSay("Tracking");
+                llSetLinkPrimitiveParamsFast(PRIM_RED_LED, [PRIM_GLOW, ALL_SIDES, GLOW_RED]);
+                //llOwnerSay("Tracking");
+                llTriggerSound("Tracking", LOCK_SOUND_VOLUME);
             }
             else if (message == "Untrack")
             {
@@ -508,7 +517,9 @@ default
                      "\"cmd\":\"track\"," +
                      "\"state\":\"false\"}");
                 llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
-                llOwnerSay("Untracked");
+                llSetLinkPrimitiveParamsFast(PRIM_RED_LED, [PRIM_GLOW, ALL_SIDES, GLOW_OFF]);
+                //llOwnerSay("Untracked");
+                llTriggerSound("Untracking", LOCK_SOUND_VOLUME);
             }
             else if (message == "Add Own")
             {
@@ -663,7 +674,7 @@ default
     http_response(key id, integer status, list metadata, string body)
     {
         // Stop the glow on the antenna, we're off the air.
-        llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [ PRIM_GLOW, ALL_SIDES, 0.0 ]);
+        llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [ PRIM_GLOW, ALL_SIDES, GLOW_OFF ]);
 
         // Owner added or deleted; the response is the same to both:
         // the complete current list of owners.  Save the list, then
@@ -784,7 +795,7 @@ default
             else if (llJsonValueType(body, ["locked"]) == JSON_FALSE)
             {
                 locked = FALSE;
-                llSetLinkPrimitiveParamsFast(PRIM_RED_LED, [PRIM_GLOW, ALL_SIDES, 0.0]);
+                llSetLinkPrimitiveParamsFast(PRIM_RED_LED, [PRIM_GLOW, ALL_SIDES, GLOW_OFF]);
             }
             else
             {
@@ -800,7 +811,7 @@ default
             else if (llJsonValueType(body, ["tracking"]) == JSON_FALSE)
             {
                 locked = FALSE;
-                llSetLinkPrimitiveParamsFast(PRIM_GREEN_LED, [PRIM_GLOW, ALL_SIDES, 0.0]);
+                llSetLinkPrimitiveParamsFast(PRIM_GREEN_LED, [PRIM_GLOW, ALL_SIDES, GLOW_OFF]);
             }
             else
             {
