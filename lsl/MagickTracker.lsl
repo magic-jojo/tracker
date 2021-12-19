@@ -125,7 +125,9 @@ float GLOW_GREEN = 0.75;
 float GLOW_RED = 0.90;
 float GLOW_OFF = 0.0;
 
+float BELL_SOUND_VOLUME = 1.0;
 float LOCK_SOUND_VOLUME = 1.0;
+float TRACK_SOUND_VOLUME = 0.75;
 
 // timer values, expressed in "unix" time
 // TP home, set when the avi enters an unpermitted sim,
@@ -441,6 +443,7 @@ default
                     [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
                     "{\"avid\":\"" + (string)gWearer + "\",\"cmd\":\"sethome\",\"home\":\"" + home + "\"}");
                 llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
+                llTriggerSound("Doorbell", BELL_SOUND_VOLUME);
                 llInstantMessage(llGetOwner(), "Set home here (" + home + ")");
             }
             else if (message == "Travel Time")
@@ -505,7 +508,7 @@ default
                 llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
                 llSetLinkPrimitiveParamsFast(PRIM_RED_LED, [PRIM_GLOW, ALL_SIDES, GLOW_RED]);
                 //llOwnerSay("Tracking");
-                llTriggerSound("Tracking", LOCK_SOUND_VOLUME);
+                llTriggerSound("Tracking", TRACK_SOUND_VOLUME);
             }
             else if (message == "Untrack")
             {
@@ -519,7 +522,7 @@ default
                 llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
                 llSetLinkPrimitiveParamsFast(PRIM_RED_LED, [PRIM_GLOW, ALL_SIDES, GLOW_OFF]);
                 //llOwnerSay("Untracked");
-                llTriggerSound("Untracking", LOCK_SOUND_VOLUME);
+                llTriggerSound("Untracking", TRACK_SOUND_VOLUME);
             }
             else if (message == "Add Own")
             {
