@@ -158,6 +158,25 @@ string BoolOf(integer val)
 }
 
 
+// RLV-secure the device, or remove any restrictions set.
+// These need to be paired, so keep them together here.
+secure()
+{
+    if (locked)
+    {
+        llOwnerSay("@detach=n");
+        llOwnerSay("@permissive=n");
+        llOwnerSay("@editobj:" + (string)llGetLinkKey(1) + "=n");
+        llTriggerSound("Locking", LOCK_SOUND_VOLUME);
+    }
+    else
+    {
+        llOwnerSay("@clear");
+        llTriggerSound("Unlocking", LOCK_SOUND_VOLUME);
+    }
+}
+
+
 default
 {
     state_entry()
@@ -478,7 +497,7 @@ default
                      "\"cmd\":\"lock\"}");
                 llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
                 llSetLinkPrimitiveParamsFast(PRIM_GREEN_LED, [PRIM_GLOW, ALL_SIDES, GLOW_GREEN]);
-                llTriggerSound("Locking", LOCK_SOUND_VOLUME);
+                secure();
             }
             else if (message == "Unlock")
             {
@@ -491,7 +510,7 @@ default
                      "\"state\":\"false\"}");
                 llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
                 llSetLinkPrimitiveParamsFast(PRIM_GREEN_LED, [PRIM_GLOW, ALL_SIDES, GLOW_OFF]);
-                llTriggerSound("Unlocking", LOCK_SOUND_VOLUME);
+                secure();
             }
             else if (message == "Track")
             {
@@ -780,8 +799,6 @@ default
         else if (id == configReq)
         {
             llOwnerSay(body);
-            home = llJsonGetValue(body, ["home"]);
-            //llOwnerSay("home: " + home);
             
             if (llJsonValueType(body, ["locked"]) == JSON_TRUE)
             {
@@ -797,7 +814,11 @@ default
             {
                 llOwnerSay("Lock is fucked, or LSL sucks tiny balls");
             }
-            //llOwnerSay("locked: " + (string)locked);
+            // Update the lock NOW, this is why this comes first.
+            secure();
+            
+            home = llJsonGetValue(body, ["home"]);
+            //llOwnerSay("home: " + home);
             
             if (llJsonValueType(body, ["tracking"]) == JSON_TRUE)
             {
