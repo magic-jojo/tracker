@@ -52,20 +52,20 @@ list ownerMenu()
         //llOwnerSay("Menu: Lock at: " + (string)i);
         menu = llListReplaceList(menu, ["Unlock"], i, i);
     }
-    else
-    {
-        llOwnerSay("Menu: Unlocked");
-    }
+    //else
+    //{
+    //    llOwnerSay("Menu: Unlocked");
+    //}
     if (tracking)
     {
         i = llListFindList(menu, ["Track"]);
         //llOwnerSay("Menu: Track at: " + (string)i);
         menu = llListReplaceList(menu, ["Untrack"], i, i);
     }
-    else
-    {
-        //llOwnerSay("Menu: Untracked");
-    }
+    //else
+    //{
+    //    llOwnerSay("Menu: Untracked");
+    //}
     return menu;
 }
 
@@ -174,6 +174,21 @@ secure()
         llOwnerSay("@clear");
         llTriggerSound("Unlocking", LOCK_SOUND_VOLUME);
     }
+}
+
+
+// Kick off the search for owner names.
+// Wow this is a suck-ass way to do this.
+// This is racey as hell, and the ownNames list may be invalid
+// while we're frobbing the dataserver filling it in, but it
+// SHOULD complete fast enough to not let a user get another
+// menu on screen.
+
+updateOwners()
+{
+    ownCount = 0;
+    ownNames = [];
+    nameReq = llRequestDisplayName(llList2Key(owners, 0));
 }
 
 
@@ -543,64 +558,86 @@ default
                 
                 list avis = llGetAgentList(AGENT_LIST_PARCEL_OWNER, []);
                 
-                // Remove me from the list
-                integer p = llListFindList(avis, [llGetOwner()]);
-                if (p != -1) { avis = llDeleteSubList(avis, p, p); }
-                
-                integer numberOfKeys = llGetListLength(avis);
- 
-                vector currentPos = llGetPos();
-                list avilist;
-                key avi;
-                integer dist;
- 
                 integer i;
-                for (i = 0; i < numberOfKeys; ++i)
-                {
-                    avi = llList2Key(avis, i);
-                    dist = llRound(llVecDist(currentPos,
-                                   llList2Vector(llGetObjectDetails(avi, [OBJECT_POS]), 0)));
-                    if (dist <= maxOwnerDist)
-                        avilist += [dist, avi];
-                }
- 
-                //  sort strided list by ascending distance
-                avilist = llListSort(avilist, 2, TRUE);
-                
-                // Add avis to the list, nearest to farthest, stopping at 12.
-                ownerList = [];
-                nearbyAvis = [];
+                integer j;
+                key o;
 
-                integer nitems = numberOfKeys;
-                integer count = 0;
-                    
-                for (i = 0; i < (nitems * 2); i += 2)
+                // Remove me from the list
+                i = llListFindList(avis, [llGetOwner()]);
+                if (i != -1) 
                 {
-                    key avatar = llList2Key(avilist, i+1);
-                    string name = llGetDisplayName(avatar);
-                    integer dist = llList2Integer(avilist, i);
-                    // Skip owners, we don't need to re-add them
-                    if (llListFindList(owners, [avatar]) == -1)
+                    //llOwnerSay("Skipping me @ " + (string)i);
+                    avis = llDeleteSubList(avis, i, i);
+                }
+                
+                // Remove each of my existing owners from the list
+                integer l = llGetListLength(owners);
+                for (i = 0; i < l; i++)
+                {
+                    o = llList2Key(owners, i);
+                    //llOwnerSay("Checking owner [" + (string)i + "]: " + (string)o);
+                    j = llListFindList(avis, [o]);
+                    if (j != -1) 
                     {
+                        //llOwnerSay("Skipping owner [" + (string)i + "]: " + (string)o + " @ " + (string)j);
+                        avis = llDeleteSubList(avis, j, j);
+                        if (llGetListLength(avis) < 1) { jump purged; }
+                    }
+                }
+                
+                @purged;
+                l = llGetListLength(avis);
+                //llOwnerSay((string)l + " people in range");
+                if (l > 0)
+                {
+                    vector currentPos = llGetPos();
+                    list avilist;
+                    key avi;
+                    integer dist;
+     
+                    for (i = 0; i < l; ++i)
+                    {
+                        avi = llList2Key(avis, i);
+                        dist = llRound(llVecDist(currentPos,
+                                       llList2Vector(llGetObjectDetails(avi, [OBJECT_POS]), 0)));
+                        if (dist <= maxOwnerDist)
+                            avilist += [dist, avi];
+                    }
+     
+                    //  sort strided list by ascending distance
+                    avilist = llListSort(avilist, 2, TRUE);
+                    
+                    // Add avis to the list, nearest to farthest, stopping at 12.
+                    ownerList = [];
+                    nearbyAvis = [];
+    
+                    integer nitems = l;
+                    integer count = 0;
+                        
+                    for (i = 0; i < (nitems * 2); i += 2)
+                    {
+                        key avatar = llList2Key(avilist, i+1);
+                        string name = llGetDisplayName(avatar);
+                        integer dist = llList2Integer(avilist, i);
                         //llOwnerSay(name + " @ " + (string)dist + "m");
                         ownerList += name;
                         nearbyAvis += avatar;
                         count += 1;
                         if (count == 12) jump maxxedOut;
                     }
+                    
+                    @maxxedOut;
+                    addOwnHand = llListen(addOwnChan, "", id, "");
+                    llDialog(id, "Choose new Owner", ownerList, addOwnChan);
+                    timerAddOwnChan = llGetUnixTime() + menuGraceTime;
                 }
-                
-                @maxxedOut;
-                addOwnHand = llListen(addOwnChan, "", llGetOwner(), "");
-                llDialog(llGetOwner(), "Choose new Owner", ownerList, addOwnChan);
-                timerAddOwnChan = llGetUnixTime() + menuGraceTime;
             }
             else if (message == "Del Own")
             {
                 // Display the list of owner names we have cached.
                 // This is racey as all hell.
-                delOwnHand = llListen(delOwnChan, "", llGetOwner(), "");
-                llDialog(llGetOwner(), "Remove which Owner", ownNames, delOwnChan);
+                delOwnHand = llListen(delOwnChan, "", id, "");
+                llDialog(id, "Remove which Owner", ownNames, delOwnChan);
                 timerDelOwnChan = llGetUnixTime() + menuGraceTime;
             }
             else if (message == "TP Home")
@@ -660,7 +697,7 @@ default
         // Check to see if any timers have expired.
         if (timerTP != 0 && timerTP < now)
         {
-            llOwnerSay("Timed out, sending you home");
+            llInstantMessage(llGetOwner(), "Timed out, sending you home");
             llOwnerSay("@tpto:" + home + "=force");
             timerTP = 0; // Reset now to avoid double-tp
         }
@@ -700,11 +737,11 @@ default
             if (ty == JSON_ARRAY)
             {
                 string ownStr = (string)llJsonGetValue(body, [(string)gWearer]);
-                llOwnerSay("owners as string: " + ownStr);
+                //llOwnerSay("owners as string: " + ownStr);
                 list ownlist = llParseString2List(ownStr, ["[", "]", "\"", ","], [""]);
-                llOwnerSay("ownlist: " + (string)ownlist);
+                //llOwnerSay("ownlist: " + (string)ownlist);
                 integer n = llGetListLength(ownlist);
-                llOwnerSay("Found " + (string)n + " ownlist:");
+                //llOwnerSay("Found " + (string)n + " ownlist:");
                 
                 // Convert owners to keys and store
                 owners = [];
@@ -716,15 +753,9 @@ default
                     owners += owner;
                 }
                 
-                llOwnerSay("owners: " + (string)owners);
+                //llOwnerSay("owners: " + (string)owners);
                 
-                // Kick off the search for owner names.
-                // Wow this is a suck-ass way to do this.
-                // We leave the existing list in place, 
-                // just in case it has valid names in it
-                
-                ownCount = 0;
-                nameReq = llRequestDisplayName(llList2Key(owners, 0));
+                updateOwners();
             }
             else
             {
@@ -745,7 +776,7 @@ default
         }
         else if (id == travReq)
         {
-            // User set a new home.  Do we need to do anything here?
+            // Travel time set.  Do we need to do anything here?
             llOwnerSay("travReq: " + body);
         }
         else if (id == tpReq) 
@@ -862,8 +893,9 @@ default
             }
             //llOwnerSay("owners: <" + llDumpList2String(owners, "><") + ">");
             // Go find the owners names, too, for the "Del Owner" menu
-            ownCount = 0;
-            nameReq = llRequestDisplayName(llList2Key(owners, 0));
+            //ownCount = 0;
+            //nameReq = llRequestDisplayName(llList2Key(owners, 0));
+            updateOwners();
 
             //llOwnerSay("locations is an array: figure out the fucking names");
             string locsStr = (string)llJsonGetValue(body, ["locations"]);
