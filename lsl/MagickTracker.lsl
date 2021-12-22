@@ -414,7 +414,7 @@ default
             integer i = llListFindList(ownerList, [message]);
             if (i < 0)
             {
-                llOwnerSay("WTF?  Owner list b0rked");
+                llOwnerSay("Add Own cancelled");
             }
             else
             {
@@ -566,7 +566,7 @@ default
                 i = llListFindList(avis, [llGetOwner()]);
                 if (i != -1) 
                 {
-                    //llOwnerSay("Skipping me @ " + (string)i);
+                    llOwnerSay("Skipping me @ " + (string)i);
                     avis = llDeleteSubList(avis, i, i);
                 }
                 
@@ -579,7 +579,7 @@ default
                     j = llListFindList(avis, [o]);
                     if (j != -1) 
                     {
-                        //llOwnerSay("Skipping owner [" + (string)i + "]: " + (string)o + " @ " + (string)j);
+                        llOwnerSay("Skipping owner [" + (string)i + "]: " + (string)o + " @ " + (string)j);
                         avis = llDeleteSubList(avis, j, j);
                         if (llGetListLength(avis) < 1) { jump purged; }
                     }
@@ -587,7 +587,7 @@ default
                 
                 @purged;
                 l = llGetListLength(avis);
-                //llOwnerSay((string)l + " people in range");
+                llOwnerSay((string)l + " people in range");
                 if (l > 0)
                 {
                     vector currentPos = llGetPos();
@@ -600,6 +600,7 @@ default
                         avi = llList2Key(avis, i);
                         dist = llRound(llVecDist(currentPos,
                                        llList2Vector(llGetObjectDetails(avi, [OBJECT_POS]), 0)));
+                        llOwnerSay((string)avi + " @ " + (string)dist + "m");
                         if (dist <= maxOwnerDist)
                             avilist += [dist, avi];
                     }
@@ -611,10 +612,8 @@ default
                     ownerList = [];
                     nearbyAvis = [];
     
-                    integer nitems = l;
                     integer count = 0;
-                        
-                    for (i = 0; i < (nitems * 2); i += 2)
+                    for (i = 0; i < (l * 2); i += 2)
                     {
                         key avatar = llList2Key(avilist, i+1);
                         string name = llGetDisplayName(avatar);
@@ -629,6 +628,12 @@ default
                     @maxxedOut;
                     addOwnHand = llListen(addOwnChan, "", id, "");
                     llDialog(id, "Choose new Owner", ownerList, addOwnChan);
+                    timerAddOwnChan = llGetUnixTime() + menuGraceTime;
+                }
+                else
+                {
+                    addOwnHand = llListen(addOwnChan, "", id, "");
+                    llDialog(id, "No potential owners in range", [], addOwnChan);
                     timerAddOwnChan = llGetUnixTime() + menuGraceTime;
                 }
             }
