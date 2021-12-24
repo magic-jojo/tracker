@@ -131,9 +131,9 @@ integer PRIM_RED_LED = 2;
 integer PRIM_YELLOW_LED = 3; // Not currently used
 
 float GLOW_ANTENNA = 1.0;
-float GLOW_GREEN = 0.75;
+float GLOW_GREEN = 0.65;
 float GLOW_RED = 0.90;
-float GLOW_YELLOW = 0.80;
+float GLOW_YELLOW = 0.65;
 float GLOW_OFF = 0.0;
 
 vector COLOR_RED = <1.000, 0.255, 0.212>;
@@ -161,6 +161,7 @@ integer timerRecoverChan;
 
 list ownerList;         // names of pending owners
 list nearbyAvis;        // ids of pending owners
+integer sentHome = FALSE;
 
 integer dwellMinutes;   // per-sim minutes
 integer allowMinutes;   // travel minutes
@@ -174,8 +175,10 @@ string BoolOf(integer val)
 
 // RLV-secure the device, or remove any restrictions set.
 // These need to be paired, so keep them together here.
+
 secure(integer tx)
 {
+    // Restrictions first, let's get these in place
     if (locked)
     {
         // Lockdown only counts if wearer is locked.
@@ -184,7 +187,12 @@ secure(integer tx)
         
         if (lockdown)
         {
-            string restrain = "@startim=n,chatshout=ntplocal:0.5=n,tplm=n,tploc=n,tplure_sec=n,sittp:0.5=n,standtp=n,tpto:" + home + "=force";
+            string restrain = "@startim=n,chatshout=ntplocal:0.5=n,tplm=n,tploc=n,tplure_sec=n,sittp:0.5=n,standtp=n";
+            if (sentHome)
+            {
+                restrain = restrain + ",tpto:" + home + "=force";
+                sentHome = FALSE;
+            }
             integer i;
             integer l = llGetListLength(owners);
             for (i = 0; i < l; i++)
@@ -203,7 +211,9 @@ secure(integer tx)
         
         // (Re)-lock as needed
         
-        llOwnerSay("@detach=n,permissive=n,editobj:" + (string)llGetLinkKey(1) + "=n");
+        string restrain = "@detach=n,permissive=n,editobj:" + (string)llGetLinkKey(1) + "=n";
+        llInstantMessage(llGetOwner(), "locked: " + restrain);
+        llOwnerSay(restrain);
         llTriggerSound("Locking", LOCK_SOUND_VOLUME);
     }
     else
@@ -212,15 +222,19 @@ secure(integer tx)
         llTriggerSound("Unlocking", LOCK_SOUND_VOLUME);
     }
     
-    // Set the LEDs as needed; tx=command sent (vs received)
+    // On/off air status
     if (tx)
     {
+        llInstantMessage(llGetOwner(), "tx");
         llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
     }
     else
     {
+        llInstantMessage(llGetOwner(), "rx");
         llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_OFF]);
     }
+
+    // Set the LEDs as needed
     if (locked)
     {
         if (lockdown)
@@ -608,6 +622,7 @@ default
                     [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"lockdown\"}");
+                sentHome = TRUE;
                 secure(TRUE);
             }
             else if (message == "Release")
@@ -999,10 +1014,10 @@ default
             string locsStr = (string)llJsonGetValue(body, ["locations"]);
             locations = llParseString2List(locsStr, ["[", "]", "\"", ","], [""]);
             //llOwnerSay("locations: <" + llDumpList2String(locations, "><") + ">");
-            
-            // Update the lock, indicate we are off the air
-            secure(FALSE);
         }
+            
+        // Update the lock, indicate we are off the air
+        secure(FALSE);
     }
 }
 
