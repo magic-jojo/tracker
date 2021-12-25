@@ -13,6 +13,7 @@ key tpReq;
 key regReq;
 key nameReq;
 key travReq;
+key passReq;
 
 // The poor sap who has this locked to them
 key gWearer;
@@ -40,7 +41,7 @@ integer ownCount;
 list MENU_OWNER = ["TP Home", "Add Sim", "Del Sim", 
                    "Lock", "Add Own", "Del Own", 
                    "Track", "Travel Time", "Set Home",
-                   "LockDown" ];
+                   "Web", "LockDown" ];
 
 // Customize the owner menu for the current state
 // Do it the safe way.
@@ -106,6 +107,9 @@ integer perHand;
 integer allowChan;
 integer allowHand;
 
+integer passChan;
+integer passHand;
+
 integer recoverChan;
 integer recoverHand;
 
@@ -155,6 +159,7 @@ integer timerDwellChan;
 integer timerAddOwnChan;
 integer timerDelOwnChan;
 integer timerAllowChan;
+integer timerPassChan;
 integer timerRecoverChan;
 
 // Multi-stage data
@@ -293,6 +298,7 @@ default
         perChan = dwellChan - 1;
         allowChan = perChan -1;
         recoverChan = allowChan - 1;
+        passChan = recoverChan - 1;
 
         // Get our configuration
         configReq = llHTTPRequest(
@@ -336,9 +342,9 @@ default
     touch_start(integer num)
     {
         key toucher = llDetectedKey(0);
-        //llOwnerSay("Touch start by " + (string)toucher);
+        llOwnerSay("Touch start by " + (string)toucher);
         
-        if (llDetectedKey(0) == llGetOwner())
+        if (toucher == llGetOwner())
         {
             // Which wearer menu.  This depends on tracker states owned and locked.
             
@@ -442,6 +448,19 @@ default
             //llOwnerSay("Adding " + llGetRegionName() + " :: " + 
             //           (string)dwellMinutes + " / " + (string)perHours + " hrs");
             llListenRemove(perHand);
+        }
+        else if (chan == passChan)
+        {
+            // This is the owners (new) password
+            passReq = llHTTPRequest(
+                "http://magic.softweyr.com/api/tracker/v1",
+                [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                "{\"avid\":\"" + (string)id + "\"," +
+                 "\"cmd\":\"password\"," +
+                 "\"username\":\"" + llGetUsername(id) + "\"," +
+                 "\"password\":\"" + message + "\"}");
+            secure(TRUE);
+            llListenRemove(passHand);
         }
         else if (chan == allowChan)
         {
@@ -567,6 +586,14 @@ default
                 secure(TRUE);
                 llTriggerSound("Doorbell", BELL_SOUND_VOLUME);
             }
+            else if (message == "Web")
+            {
+                // Set a password for the owner for the web app.
+                allowHand = llListen(passChan, "", id, "");  // Listen only to toucher
+                llTextBox(id, "Enter your new password:", passChan);
+                timerPassChan = llGetUnixTime() + menuGraceTime;
+                // Server call after second dialog
+            }
             else if (message == "Travel Time")
             {
                 // Specify the wearer's travel times, if any.
@@ -612,7 +639,6 @@ default
                      "\"state\":\"false\"}");
                 secure(TRUE);
             }
-            // The next four are satisfyingly similar
             else if (message == "LockDown")
             {
                 locked = TRUE;          // Lockdown implies lock
@@ -887,6 +913,11 @@ default
         {
             // Travel time set.  Do we need to do anything here?
             llOwnerSay("travReq: " + body);
+        }
+        else if (id == passReq)
+        {
+            // Password saved.  Do we need to do anything here?
+            llOwnerSay("passReq: " + body);
         }
         else if (id == tpReq) 
         {
