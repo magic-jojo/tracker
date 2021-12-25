@@ -1,3 +1,4 @@
 flask
 pendulum
 psycopg2
+passlib==1.7.4

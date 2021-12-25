@@ -3,6 +3,7 @@ from psycopg2 import connect
 from json import dumps
 from re import search
 from urllib.parse import unquote
+from passlib.hash import pbkdf2_sha256
 import pendulum
 
 
@@ -29,7 +30,21 @@ def api():
     elif content['cmd'] == 'get':
       return get(content['avid'])
     
-    if content['cmd'] == 'arrive':
+    elif content['cmd'] == 'password':
+      if not 'password' in content or not 'username' in content:
+        return 'Username or Password not specified', 501
+      ret = password(content['avid'], content['username'], content['password'])
+      print(f"password said: {ret}")
+      return ret
+
+    elif content['cmd'] == 'displayname':
+      if not 'username' in content:
+        return 'Username not specified', 501
+      ret = displayname(content['avid'], content['username'])
+      print(f"displayname said: {ret}")
+      return ret
+
+    elif content['cmd'] == 'arrive':
       if not 'landing' in content:
         return 'Landing point not specified', 501
       ret = arrive(content['avid'], content['landing'])
@@ -221,6 +236,44 @@ def travel(avid, state=True):
 
 # Write-side API:
 
+@app.route('/password/<avid>/<username>/<password>', methods = ['POST'])
+def password(avid, username, password):
+  app.logger.info(f"password({avid}, {username}, {password}")
+  print(f"password({avid}, {username}, {password}")
+
+  hash = pbkdf2_sha256.hash(password)
+
+  try:
+    with connect(dbname='tracker', user='jojo') as conn:
+      with conn.cursor() as cursor:
+        cursor.execute('''
+          INSERT INTO passwords (ownid, username, password) VALUES (%s, %s, %s)
+          ON CONFLICT (ownid) DO UPDATE SET username = %s, password = %s''',
+          [avid, username, hash, username, hash])
+        return {avid: username}
+  except Exception as e:
+    print(f"Crappin crappity crap! {e}") 
+    return str(e), 500
+
+
+@app.route('/displayname/<avid>/<name>', methods = ['POST'])
+def displayname(avid, name):
+  app.logger.info(f"displayname({avid}, {name})")
+  print(f"displayname({avid}, {name})")
+
+  try:
+    with connect(dbname='tracker', user='jojo') as conn:
+      with conn.cursor() as cursor:
+        cursor.execute('''
+          INSERT INTO displaynames (avid, name) VALUES (%s, %s)
+          ON CONFLICT (avid) DO UPDATE SET name = %s''',
+          [avid, name, name])
+        return {avid: name}
+  except Exception as e:
+    print(f"Fungool: {e}") 
+    return str(e), 500
+
+
 @app.route('/lock/<avid>', methods = ['POST'])
 @app.route('/lock/<avid>/<state>', methods = ['POST'])
 def lock(avid, state=True):
@@ -382,7 +435,6 @@ def addloc(avid, location, dwell=0, per=0):
           INSERT INTO locations (avid, location, dwell, per) VALUES (%s, %s, %s, %s)
           ON CONFLICT (avid, location) DO UPDATE SET dwell = %s, per = %s''', 
           [avid, location, dwell, per, dwell, per])
-          # [avid, location, dwell, per])
         return {avid: location}
   except Exception as e:
     print(f"Guppies! {e}") 

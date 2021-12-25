@@ -132,6 +132,14 @@ If it happens to be the Home location, unset Home as well.
 
 Done + JSON
 
+### Password(ownid, username, password)
+
+Set or change the owners web access password.  Username is the SL Username of the owner (not the display) name.
+Password is gathered from the owner.
+
+NOT DONE
+
+
 ## Operational Requests ##
 
 These APIs will be called during normal operation of the tracker
@@ -205,6 +213,16 @@ The tracker code should treat "no owners" as unowned.
 		UNIQUE (avid, owner)
 	);
 
+For the web application, we need a (hashed) password for each owner.  
+
+	CREATE TABLE passwords (
+		ownid 		UUID    NOT NULL PRIMARY KEY,
+		username	VARCHAR(64),
+		password	VARCHAR(128)
+	);
+
+The username is the SL username (not the display name), the password is the clear text password from the app.
+
 For the locations table, we allow an optional time limit per region.
 We can use the travel timer to timeout a stay in this region as well.
 A timelimit of 0 means 'no time limit,' of course.
@@ -219,3 +237,11 @@ A timelimit of 0 means 'no time limit,' of course.
 	);
 
 Note that a tracker that is locked and has no locations will repeatedly TP the wearer to their SL home location.
+
+Finally we have a display names table.  This is updated each time we rebuild the display names in the tracker, so it can be kept reasonably fresh.
+
+	CREATE TABLE displaynames (
+		avid	UUID	PRIMARY KEY,
+		name	VARCHAR(128)
+	);
+

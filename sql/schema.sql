@@ -4,7 +4,7 @@ CREATE TABLE users (
 	avid UUID PRIMARY KEY,
 	locked BOOLEAN NOT NULL DEFAULT FALSE,
 	tracking BOOLEAN NOT NULL DEFAULT FALSE,
-	lockout BOOLEAN NOT NULL DEFAULT FALSE,
+	lockdown BOOLEAN NOT NULL DEFAULT FALSE,
 	-- configure & record travel time
 	-- when created, travel time has already expired
 	travel INTEGER NOT NULL DEFAULT 0,
