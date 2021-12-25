@@ -51,11 +51,11 @@ def api():
       else:
         return track(content['avid'])
     
-    elif content['cmd'] == 'lockout':
+    elif content['cmd'] == 'lockdown':
       if 'state' in content:
-        return lockout(content['avid'], content['state'].lower().startswith('tru'))
+        return lockdown(content['avid'], content['state'].lower().startswith('tru'))
       else:
-        return lockout(content['avid'])
+        return lockdown(content['avid'])
     
     elif content['cmd'] == 'addowner':
       if not 'owner' in content:
@@ -230,7 +230,10 @@ def lock(avid, state=True):
   try:
     with connect(dbname='tracker', user='jojo') as conn:
       with conn.cursor() as cursor:
-        cursor.execute('UPDATE users SET locked = %s WHERE avid = %s', [state, avid])
+        if state:
+          cursor.execute('UPDATE users SET locked = %s WHERE avid = %s', [state, avid])
+        else:
+          cursor.execute('UPDATE users SET locked = %s, lockdown = %s WHERE avid = %s', [state, state, avid])
         return {avid: state}
   except Exception as e:
     print(f"Fuck! {e}") 
@@ -253,16 +256,19 @@ def track(avid, state=True):
     return str(e), 500
 
 
-@app.route('/lockout/<avid>', methods = ['POST'])
-@app.route('/lockout/<avid>/<state>', methods = ['POST'])
-def lockout(avid, state=True):
-  app.logger.info(f"lockout({avid}, {state})")
-  print(f"lockout({avid}, {state})")
+@app.route('/lockdown/<avid>', methods = ['POST'])
+@app.route('/lockdown/<avid>/<state>', methods = ['POST'])
+def lockdown(avid, state=True):
+  app.logger.info(f"lockdown({avid}, {state})")
+  print(f"lockdown({avid}, {state})")
 
   try:
     with connect(dbname='tracker', user='jojo') as conn:
       with conn.cursor() as cursor:
-        cursor.execute('UPDATE users SET lockout = %s WHERE avid = %s', [state, avid])
+        if state:
+          cursor.execute('UPDATE users SET lockdown = %s, locked = %s WHERE avid = %s', [state, state, avid])
+        else:
+          cursor.execute('UPDATE users SET lockdown = %s WHERE avid = %s', [state, avid])
         return {avid: state}
   except Exception as e:
     print(f"Sharks! {e}") 
@@ -437,13 +443,13 @@ def get(avid):
   try:
     with connect(dbname='tracker', user='jojo') as conn:
       with conn.cursor() as cursor:
-        cursor.execute('SELECT locked, tracking, lockout, travel, recover, home FROM users WHERE avid = %s', [avid, ])
+        cursor.execute('SELECT locked, tracking, lockdown, travel, recover, home FROM users WHERE avid = %s', [avid, ])
         rows = cursor.fetchone()
         # print(rows)
         if rows:
           result = {'locked': rows[0],
                     'tracking': rows[1],
-                    'lockout': rows[2],
+                    'lockdown': rows[2],
                     'travel': rows[3],
                     'recover': rows[4],
                     'home': rows[5],
@@ -478,13 +484,13 @@ def create(conn, avid):
 
   with conn.cursor() as cursor:
     cursor.execute('INSERT INTO users (avid) VALUES (%s)', [avid, ])
-    cursor.execute('SELECT locked, tracking, lockout, travel, recover FROM users WHERE avid = %s', [avid, ])
+    cursor.execute('SELECT locked, tracking, lockdown, travel, recover FROM users WHERE avid = %s', [avid, ])
     rows = cursor.fetchone()
     # print(rows)
     if rows:
       result = {'locked': rows[0],
                 'tracking': rows[1],
-                'lockout': rows[2],
+                'lockdown': rows[2],
                 'travel': rows[3],
                 'recover': rows[4],
                 'owners': [],
