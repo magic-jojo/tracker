@@ -214,11 +214,13 @@ The tracker code should treat "no owners" as unowned.
 	);
 
 For the web application, we need a (hashed) password for each owner.  
+We also tuck the session key here when the user is logged in.
 
 	CREATE TABLE passwords (
 		ownid 		UUID    NOT NULL PRIMARY KEY,
 		username	VARCHAR(64),
-		password	VARCHAR(128)
+		password	VARCHAR(128),
+		session		UUID
 	);
 
 The username is the SL username (not the display name), the password is the clear text password from the app.
