@@ -299,14 +299,18 @@ default
         allowChan = perChan -1;
         recoverChan = allowChan - 1;
         passChan = recoverChan - 1;
+        
+        llSetTouchText("Track");
 
-        // Get our configuration
+        // Get wearers configuration, update displayname
         configReq = llHTTPRequest(
             "http://magic.softweyr.com/api/tracker/v1",
             [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
-            "{\"avid\":\"" + (string)gWearer + "\",\"cmd\":\"get\"}");
+            "{\"avid\":\"" + (string)gWearer + "\"," +
+             "\"dn\":\"" + llGetDisplayName(gWearer) + "\"," +
+             "\"cmd\":\"get\"}");
         llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
-        
+                
         // Zero out any timers, then start the timer tick
         timerTP = 0;
         timerMenuChan = 0;
@@ -803,7 +807,10 @@ default
         if (nameReq == qId)
         {
             //llSay(0, "Display name[" + (string)ownCount + "] is " + data);
+            // Save this name in the (rebuilding) owner names list
             ownNames += data;
+
+            // If we haven't finished our owners list yet, keep going
             ownCount += 1;
             if (ownCount < llGetListLength(owners)) {
                 nameReq = llRequestDisplayName(llList2Key(owners, ownCount));
