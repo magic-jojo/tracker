@@ -4,6 +4,7 @@ from json import dumps
 from re import search
 from urllib.parse import unquote
 from passlib.hash import pbkdf2_sha256
+from uuid import uuid1
 import pendulum
 
 
@@ -24,6 +25,12 @@ def api():
     # Route based on 'cmd'
     if not 'cmd' in content:
       return 'No command to execute', 501
+    
+    if content['cmd'] == 'login':
+      if not 'username' in content or not 'password' in content:
+        return 'Username or Password not specified', 501
+      return login(content['username'], content['password'])
+
     if not 'avid' in content:
       return 'Avatar ID not specified', 501
 
@@ -128,6 +135,34 @@ def api():
     print(f"Uh-oh! {e}") 
     return str(e), 500
 
+
+# Web support API
+
+@app.route('/login/<username>/<password>', methods = ['POST'])
+def login(username, password):
+  app.logger.info(f"login(, {username}, {password})")
+  print(f"login({username}, {password})")
+
+  try:
+    with connect(dbname='tracker', user='jojo') as conn:
+      with conn.cursor() as cursor:
+        print(f"Looking for {username}:")
+        cursor.execute("SELECT password, ownid FROM passwords WHERE username = %s", [username, ])
+        print("Got that without excepting")
+        row = cursor.fetchone()
+        print(row)
+        if not row:
+          return "Login failed", 401
+        if not pbkdf2_sha256.verify(password, row[0]):
+          return "Invalid login", 401
+        session = uuid1()
+        cursor.execute("UPDATE passwords SET session = %s WHERE ownid = %s", [str(session), row[1]])
+        print(f"session cookie {session} for {row[1]} {type(row[1])}")
+        conn.commit()
+        return {row[1]: str(session)}
+  except Exception as e:
+    print(f"log what? {e}") 
+    return str(e), 500
 
 # Read-side API:
 
