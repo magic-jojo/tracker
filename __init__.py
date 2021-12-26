@@ -28,7 +28,11 @@ def api():
       return 'Avatar ID not specified', 501
 
     elif content['cmd'] == 'get':
-      return get(content['avid'])
+      if 'dn' in content:
+        ret = get(content['avid'], content['dn'])
+      else:
+        ret = get(content['avid'])
+      return ret
     
     elif content['cmd'] == 'password':
       if not 'password' in content or not 'username' in content:
@@ -487,10 +491,10 @@ def sethome(avid, region, x, y, z):
 # Our one read-write API, which is still a GET 
 # even though it can create an object
 
-@app.route('/get/<avid>')
-def get(avid):
-  app.logger.info(f"get({avid})")
-  print(f"get({avid})")
+@app.route('/get/<avid>/<dn>')
+def get(avid, dn = None):
+  app.logger.info(f"get({avid}, {dn})")
+  print(f"get({avid}, {dn})")
 
   try:
     with connect(dbname='tracker', user='jojo') as conn:
@@ -523,6 +527,13 @@ def get(avid):
             result['locations'].append(row[0])
         else:
           result = create(conn, avid)
+        
+        if dn is not None:
+          cursor.execute('''
+            INSERT INTO displaynames (avid, name) VALUES (%s, %s)
+            ON CONFLICT (avid) DO UPDATE SET name = %s''',
+            [avid, dn, dn])
+          
         return result
   except Exception as e:
     print(f"Oops! {e}")
