@@ -19,6 +19,8 @@ key passReq;
 key gWearer;
 
 // Configuration from the server
+integer configured;
+
 string home;
 integer locked;
 integer tracking;
@@ -158,6 +160,7 @@ integer timerMenuChan;
 integer timerDwellChan;
 integer timerAddOwnChan;
 integer timerDelOwnChan;
+integer timerPerChan;
 integer timerAllowChan;
 integer timerPassChan;
 integer timerRecoverChan;
@@ -291,6 +294,8 @@ default
     {
         //llOwnerSay("Hello, Avatar!");
         gWearer = llGetOwner();
+        configured = FALSE;
+        
         menuChan = -1 - (integer)("0x"+ llGetSubString((string)llGetKey(), -7, -1));
         addOwnChan = menuChan - 1;
         delOwnChan = addOwnChan - 1;
@@ -317,6 +322,10 @@ default
         timerDwellChan = 0;
         timerAddOwnChan = 0;
         timerDelOwnChan = 0;
+        timerPerChan = 0;
+        timerAllowChan = 0;
+        timerPassChan = 0;
+        timerRecoverChan = 0;
         
         llSetTimerEvent(1.0);
     }
@@ -392,6 +401,7 @@ default
                     "Locked: " + BoolOf(locked) + "\n" +
                     "Tracking: " + BoolOf(tracking);
                 llDialog(toucher, statmsg, ownerMenu(), menuChan);
+                timerMenuChan = llGetUnixTime() + menuGraceTime;
             }
         }
     }
@@ -426,6 +436,7 @@ default
                 perHand = llListen(perChan, "", id, "");
                 string desc = llGetRegionName() + " per time";
                 llDialog(id, desc, MENU_RECOVER, perChan);
+                timerPerChan = llGetUnixTime() + menuGraceTime;
             }
 
             //llOwnerSay(llGetRegionName() + " being allowed?");
@@ -492,6 +503,7 @@ default
                 recoverHand = llListen(recoverChan, "", id, "");
                 string desc = llGetDisplayName(llGetOwner()) + " travel recovery time";
                 llDialog(id, desc, MENU_RECOVER, recoverChan);
+                timerRecoverChan = llGetUnixTime() + menuGraceTime;
             }
             llListenRemove(allowHand);
         }
@@ -827,6 +839,7 @@ default
     attach(key id)
     {
         // Get our configuration
+        configured = FALSE;
         gWearer = llGetOwner();
         configReq = llHTTPRequest(
             "http://magic.softweyr.com/api/tracker/v1",
@@ -839,12 +852,28 @@ default
     {
         integer now = llGetUnixTime();
         
+        // Has our configuration loaded?
+        // Keep trying until the configuration server responds
+        if (!configured)
+        {
+            // Get wearers configuration, update displayname
+            configReq = llHTTPRequest(
+                "http://magic.softweyr.com/api/tracker/v1",
+                [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                "{\"avid\":\"" + (string)gWearer + "\"," +
+                 "\"dn\":\"" + llGetDisplayName(gWearer) + "\"," +
+                 "\"cmd\":\"get\"}");
+            llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
+        }
+        
         // Check to see if any timers have expired.
         if (timerTP != 0 && timerTP < now)
         {
             llInstantMessage(llGetOwner(), "Timed out, sending you home");
             llOwnerSay("@tpto:" + home + "=force");
-            timerTP = 0; // Reset now to avoid double-tp
+            // Bump the timer in case the tp failed, so we keep trying.
+            // A TP to a permitted sim will disable the timer.
+            timerTP += tpGraceTime;
         }
         if (timerMenuChan != 0 && timerMenuChan < now)
         {
@@ -865,6 +894,26 @@ default
         {
             llListenRemove(delOwnHand);
             timerDelOwnChan = 0;
+        }
+        if (timerPerChan != 0 && timerPerChan < now)
+        {
+            llListenRemove(perHand);
+            timerPerChan = 0;
+        }
+        if (timerAllowChan != 0 && timerAllowChan < now)
+        {
+            llListenRemove(allowHand);
+            timerAllowChan = 0;
+        }
+        if (timerPassChan != 0 && timerPassChan < now)
+        {
+            llListenRemove(passHand);
+            timerPassChan = 0;
+        }
+        if (timerRecoverChan != 0 && timerRecoverChan < now)
+        {
+            llListenRemove(recoverHand);
+            timerRecoverChan = 0;
         }
     }
 
@@ -1052,6 +1101,8 @@ default
             string locsStr = (string)llJsonGetValue(body, ["locations"]);
             locations = llParseString2List(locsStr, ["[", "]", "\"", ","], [""]);
             //llOwnerSay("locations: <" + llDumpList2String(locations, "><") + ">");
+            
+            configured = TRUE;
         }
             
         // Update the lock, indicate we are off the air
