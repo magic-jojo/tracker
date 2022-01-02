@@ -1,4 +1,4 @@
-from flask import Flask, request
+from flask import Flask, request, render_template
 from psycopg2 import connect
 from json import dumps
 from re import search
@@ -11,6 +11,17 @@ import pendulum
 # The Flask app:
 
 app = Flask(__name__)
+
+# Web Front-end
+
+@app.route('/')
+def webhome():
+  return render_template('login.html', title = 'Magic Tracker')
+
+@app.route('/app')
+def apphome():
+  return render_template('webapp.html', title = 'Magic Tracker')
+
 
 # The JSON API
 # Basically, a call router for the URL API
@@ -31,6 +42,13 @@ def api():
         return 'Username or Password not specified', 501
       return login(content['username'], content['password'])
 
+    if content['cmd'] == 'list':
+      if not 'session' in content:
+        return 'Must be logged in to call this function', 401
+      return list(content['session'])
+
+
+    # The remaining API calls all require 'avid' at least
     if not 'avid' in content:
       return 'Avatar ID not specified', 501
 
@@ -138,7 +156,7 @@ def api():
 
 # Web support API
 
-@app.route('/login/<username>/<password>', methods = ['POST'])
+@app.route('/login/<username>/<password>')
 def login(username, password):
   app.logger.info(f"login(, {username}, {password})")
   print(f"login({username}, {password})")
@@ -146,25 +164,51 @@ def login(username, password):
   try:
     with connect(dbname='tracker', user='jojo') as conn:
       with conn.cursor() as cursor:
-        print(f"Looking for {username}:")
+        #print(f"Looking for {username}:")
         cursor.execute("SELECT password, ownid FROM passwords WHERE username = %s", [username, ])
-        print("Got that without excepting")
+        #print("Got that without excepting")
         row = cursor.fetchone()
-        print(row)
+        #print(row)
         if not row:
           return "Login failed", 401
         if not pbkdf2_sha256.verify(password, row[0]):
           return "Invalid login", 401
         session = uuid1()
         cursor.execute("UPDATE passwords SET session = %s WHERE ownid = %s", [str(session), row[1]])
-        print(f"session cookie {session} for {row[1]} {type(row[1])}")
+        print(f"session cookie {session} for {row[1]}")
         conn.commit()
-        return {row[1]: str(session)}
+        return {'session': session}
   except Exception as e:
     print(f"log what? {e}") 
     return str(e), 500
 
 # Read-side API:
+
+
+# List the properties that belong to the logged-in user
+def list(session):
+  try:
+    with connect(dbname='tracker', user='jojo') as conn:
+      with conn.cursor() as cursor:
+        #cursor.execute("SELECT ownid FROM passwords WHERE session = %s", [session, ])
+        #row = cursor.fetchone()
+        #ownid = row[0]
+        #print(f"Listing properties for {ownid}")
+        cursor.execute('''
+          SELECT d.name, d.avid FROM displaynames d
+          INNER JOIN owners o ON d.avid = o.avid
+          INNER JOIN passwords p ON o.owner = p.ownid AND p.session = %s''',
+          [session, ])
+        rows = cursor.fetchall()
+        properties = []
+        for row in rows:
+          properties.append({row[0]:row[1]})
+        return {'properties': properties}
+  except Exception as e:
+    print(f"log what? {e}") 
+    return str(e), 500
+        
+  
 
 @app.route('/arrive/<avid>/<landing>', methods = ['POST'])
 def arrive(avid, landing):
