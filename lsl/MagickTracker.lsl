@@ -955,14 +955,16 @@ default
         }
         else if (id == travelReq) 
         {
-            //llOwnerSay(body);
             if (llJsonValueType(body, [(string)llGetOwner()]) == JSON_TRUE)
             {
                 llTriggerSound("Swoosh", TRAVEL_SOUND_VOLUME);
+                timerTP = 0;    // Cancel outstanding tp timer
+                llInstantMessage(llGetOwner(), "Travel granted, timer cancelled");
             }
             else
             {
                 llTriggerSound("Denied", TRAVEL_SOUND_VOLUME);
+                llInstantMessage(llGetOwner(), "Travel denied");
             }
         }
         else if (id == travReq)
@@ -1015,8 +1017,9 @@ default
         }
         else if (id == locReq)
         {
-            // User added a location.  Do we need to do anything here?
-            llOwnerSay("locReq: " + body);
+            // Owner added THIS location.
+            //llOwnerSay("locReq: " + body);
+            timerTP = 0;    // Cancel any tp timer
         }
         else if (id == lockReq)
         {
@@ -1109,4 +1112,3 @@ default
         secure(FALSE);
     }
 }
-
