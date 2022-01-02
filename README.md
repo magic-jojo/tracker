@@ -14,5 +14,5 @@ is described in [InWorld](/docs/InWorld.md).
 
 ## Bugs
 
-1. Requesting and receiving travel auth while in an unpermitted sim doesn't cancel the TP timer.
+1. <s>Requesting and receiving travel auth while in an unpermitted sim doesn't cancel the TP timer.</s>
 2. Adding the current sim doesn't cancel a TP timer (i.e. wearer leashed, owner adds).
