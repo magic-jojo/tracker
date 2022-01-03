@@ -1,24 +1,16 @@
 integer hudChan = -19351206;
 integer hudHand;
 
-// Status LEDs
+integer STATUS_LED = 10;
 
-integer LED1 = 13;
-integer LED2 = 12;
-integer LED3 = 11;
-integer LED4 = 10;
-integer LED5 = 9;
-integer LED6 = 8;
-integer LED7 = 7;
-integer LED8 = 6;
-
-list LEDs = [ LED1, LED2, LED3, LED4, LED5, LED6, LED7, LED8 ];
-
-integer STATUS_LED = 5;
-
-integer LTARROW = 2;
-integer RTARROW = 3;
-integer TEXTBOX = 4;
+integer BUTTON_LOCK = 9;
+integer BUTTON_UNLOCK = 8;
+integer BUTTON_TRACK = 7;
+integer BUTTON_UNTRACK = 6;
+integer BUTTON_ADDLOC = 5;
+integer BUTTON_DELLOC = 4;
+integer BUTTON_HOME = 3;
+integer BUTTON_LOCKDOWN = 2;
 
 vector COLOR_GREEN = <0.255, 1.000, 0.212>;
 vector COLOR_GREEN_OFF = <0.255, 0.480, 0.212>;
@@ -32,139 +24,138 @@ float GLOW_YELLOW = 0.65;
 float GLOW_OFF = 0.0;
 float GLOW_ON = 1.0;
 
-list subjects;   // 2-strided list of my wearers that are in range; name then GUID
+list subjects;   // 4-strided list of my wearers that are in range; name then GUID
+
+float scanInterval = 20.0;  // 60.0;
+float shortInterval = 2.0;  // maybe 1.0?
+integer longTimer;
 
 statusDisplay()
 {
-    integer l = llGetListLength(subjects) / 2;
-    llSay(0, "statusDisplay: " + (string)l + " subjects");
+    integer l = llGetListLength(subjects) / 4;
+    llOwnerSay("statusDisplay: " + (string)l + " subjects");
     if (l < 1)
     {
-        llSetLinkColor(STATUS_LED, COLOR_RED, ALL_SIDES);
-        llSetLinkPrimitiveParamsFast(STATUS_LED, [PRIM_GLOW, ALL_SIDES, GLOW_RED]);
+        llSetLinkColor(STATUS_LED, COLOR_GREEN, ALL_SIDES);
+        llSetLinkPrimitiveParamsFast(STATUS_LED, [PRIM_GLOW, ALL_SIDES, GLOW_OFF]);
     }
     else
     {
-        llSetLinkColor(STATUS_LED, COLOR_YELLOW, ALL_SIDES);
-        llSetLinkPrimitiveParamsFast(STATUS_LED, [PRIM_GLOW, ALL_SIDES, GLOW_YELLOW]);
-    }
-    integer i;
-    for (i = 0; i < l; i++)
-    {
-        integer led = llList2Integer(LEDs, i);
-        llSetLinkColor(led, COLOR_GREEN, ALL_SIDES);
-        llSetLinkPrimitiveParamsFast(led, [PRIM_GLOW, ALL_SIDES, GLOW_GREEN]);
-        //llSay(0, "Lighting LED " + (string)i + " link " + (string)led);
-    }
-    for (i = l; i < 8; i++)
-    {
-        integer led = llList2Integer(LEDs, i);
-        llSetLinkColor(led, COLOR_GREEN_OFF, ALL_SIDES);
-        llSetLinkPrimitiveParamsFast(led, [PRIM_GLOW, ALL_SIDES, GLOW_OFF]);
-        //llSay(0, "Dimming LED " + (string)i + " link " + (string)led);
+        llSetLinkColor(STATUS_LED, COLOR_GREEN, ALL_SIDES);
+        llSetLinkPrimitiveParamsFast(STATUS_LED, [PRIM_GLOW, ALL_SIDES, GLOW_GREEN]);
     }
 }
-
-string selectedUser = "";
-
-selectionDisplay()
-{
-    // Sort the list of responses to make sure it is in order.
-    llListSort(subjects, 2, TRUE);
-
-    // If we have a selected user, see if she is still in the nearby users;
-    // otherwise select somebody.
-    string name = selectedUser;
-    if (llListFindList(subjects, [selectedUser]) == -1) 
-    { 
-        name = llList2String(subjects, 0);
-    }
-    llSetLinkPrimitiveParamsFast(TEXTBOX, [PRIM_TEXT, name, COLOR_BLACK, GLOW_ON]);
-}
-
-
-float scanInterval = 20.0; // 60.0;
-float shortInterval = 2.0;
-
-integer timerLong = TRUE;
 
 default
 {
     state_entry()
     {
+        llOwnerSay("Magic Tracker HUD starting");
+        
         // Set up our communications
         hudHand = llListen(hudChan, "", NULL_KEY, "");  // Listen to all HUDs in range
-        llSetTimerEvent(scanInterval);
-    }
-
-    touch_start(integer total_number)
-    {
-        llSay(0, "Touched.");
-        integer l = llGetListLength(subjects);
-        integer s = llListFindList(subjects, [selectedUser]);
-        integer link = llDetectedLinkNumber(0);
-        if (link == LTARROW)
-        {
-            // Select the user "before" the current one
-            if (s == -1)
-            {
-                // That user dropped off the list, just pick somebody
-                s = 0;
-            }
-            else if (s == 0)
-            {
-                // Left of the beginning is the end (minus one for stride)
-                s = l - 1;
-            }
-            else
-            {
-                s -= 2; // for stride
-            }
-            selectedUser = llList2String(subjects, s);
-            selectionDisplay();
-        }
-        else if (link == RTARROW)
-        {
-            if (s == -1)
-            {
-                // That user dropped off the list, just pick somebody
-                s = 0;
-            }
-            else if (s >= l)  // Again, because stride
-            {
-                // Right of the end is the beginning
-                s = 0;
-            }
-            else
-            {
-                s += 2; // for stride
-            }
-            selectedUser = llList2String(subjects, s);
-            selectionDisplay();
-        }
+        
+        // Clean up any lingering object texts
+        llSetLinkPrimitiveParamsFast(STATUS_LED, [PRIM_TEXT, "", COLOR_GREEN, GLOW_OFF]);
+        llSetLinkPrimitiveParamsFast(BUTTON_LOCK, [PRIM_TEXT, "", COLOR_BLACK, GLOW_OFF]);
+        llSetLinkPrimitiveParamsFast(BUTTON_UNLOCK, [PRIM_TEXT, "", COLOR_BLACK, GLOW_OFF]);
+        llSetLinkPrimitiveParamsFast(BUTTON_TRACK, [PRIM_TEXT, "", COLOR_BLACK, GLOW_OFF]);
+        llSetLinkPrimitiveParamsFast(BUTTON_UNTRACK, [PRIM_TEXT, "", COLOR_BLACK, GLOW_OFF]);
+        llSetLinkPrimitiveParamsFast(BUTTON_ADDLOC, [PRIM_TEXT, "", COLOR_BLACK, GLOW_OFF]);
+        llSetLinkPrimitiveParamsFast(BUTTON_DELLOC, [PRIM_TEXT, "", COLOR_BLACK, GLOW_OFF]);
+        llSetLinkPrimitiveParamsFast(BUTTON_HOME, [PRIM_TEXT, "", COLOR_BLACK, GLOW_OFF]);
+        llSetLinkPrimitiveParamsFast(BUTTON_LOCKDOWN, [PRIM_TEXT, "", COLOR_BLACK, GLOW_OFF]);
+        
+        // Start out first scan for nearby trackers that belong to us.
+        subjects = [];
+        llSay(hudChan, "P:" + (string)llGetOwner());
+        llOwnerSay("Scan");
+        
+        // Start the short timer
+        longTimer = FALSE;
+        llSetTimerEvent(shortInterval);
     }
     
     timer()
     {
-        if (timerLong)
+        llOwnerSay("timer");
+        if (longTimer)
         {
-            // Check for trackers in range.  We tell trackers our GUID
+            // Scan for trackers in range.  We tell trackers our GUID
             // so they can check their owner lists.
-            llSay(hudChan, "P:" + (string)llGetOwner());
             subjects = [];
-            llSay(0, "Scan");
+            llSay(hudChan, "P:" + (string)llGetOwner());
+            llOwnerSay("Scan");
+            
+            // Start the short timer
+            longTimer = FALSE;
             llSetTimerEvent(shortInterval);
-            timerLong = FALSE;
         }
         else
         {
             // Assume all the responses have come in by now.
             // Clean up the list.
+            llOwnerSay("Reap");
+            llListSort(subjects, 4, TRUE);
             statusDisplay();
-            selectionDisplay();
             
+            // Restart the long timer
             llSetTimerEvent(scanInterval);
-            timerLong = TRUE;
+            longTimer = TRUE;
+        }
+    }
+
+    touch_start(integer total_number)
+    {
+        llOwnerSay("Touched.");
+        integer link = llDetectedLinkNumber(0);
+        if (link == BUTTON_LOCK)
+        {
+            llSetLinkPrimitiveParamsFast(BUTTON_LOCK, [PRIM_TEXT, "", COLOR_BLACK, GLOW_OFF]);
+            llSay(hudChan, "L:" + (string)llGetOwner());
+            llOwnerSay("Lock");
+        }
+        else if (link == BUTTON_UNLOCK)
+        {
+            llOwnerSay("Unlock");
+            llSetLinkPrimitiveParamsFast(BUTTON_UNLOCK, [PRIM_TEXT, "", COLOR_BLACK, GLOW_OFF]);
+            llSay(hudChan, "UL:" + (string)llGetOwner());
+        }
+        else if (link == BUTTON_TRACK)
+        {
+            llOwnerSay("Track");
+            llSetLinkPrimitiveParamsFast(BUTTON_TRACK, [PRIM_TEXT, "", COLOR_BLACK, GLOW_OFF]);
+            llSay(hudChan, "T:" + (string)llGetOwner());
+        }
+        else if (link == BUTTON_UNTRACK)
+        {
+            llOwnerSay("Untrack");
+            llSetLinkPrimitiveParamsFast(BUTTON_UNTRACK, [PRIM_TEXT, "", COLOR_BLACK, GLOW_OFF]);
+            llSay(hudChan, "UT:" + (string)llGetOwner());
+        }
+        else if (link == BUTTON_ADDLOC)
+        {
+            llOwnerSay("Add Location");
+            llSetLinkPrimitiveParamsFast(BUTTON_ADDLOC, [PRIM_TEXT, "", COLOR_BLACK, GLOW_OFF]);
+            llSay(hudChan, "AL:" + (string)llGetOwner());
+        }
+        else if (link == BUTTON_DELLOC)
+        {
+            llOwnerSay("Del Location");
+            llSetLinkPrimitiveParamsFast(BUTTON_DELLOC, [PRIM_TEXT, "", COLOR_BLACK, GLOW_OFF]);
+            llSay(hudChan, "DL:" + (string)llGetOwner());
+        }
+        else if (link == BUTTON_HOME)
+        {
+            llOwnerSay("Home");
+            llSetLinkPrimitiveParamsFast(BUTTON_HOME, [PRIM_TEXT, "", COLOR_BLACK, GLOW_OFF]);
+            llSay(hudChan, "H:" + (string)llGetOwner());
+        }
+        else if (link == BUTTON_LOCKDOWN)
+        {
+            llOwnerSay("It's the final lockdown!");
+            llSetLinkPrimitiveParamsFast(BUTTON_LOCKDOWN, [PRIM_TEXT, "", COLOR_BLACK, GLOW_OFF]);
+            llSay(hudChan, "LD:" + (string)llGetOwner());
         }
     }
     
@@ -172,18 +163,21 @@ default
     {
         if (chan == hudChan)
         {
-            //llSay(0, "Tracker reply: " + message);
+            //llOwnerSay("Tracker reply: " + message);
             list response = llParseString2List(message, [":"], []);
             if (llList2String(response, 0) == "U")
             {
                 // This is an owned user.
                 key user = llList2Key(response, 1);
                 string name = llList2String(response, 2);
+                integer locked = llList2Integer(response, 3);
+                integer tracking = llList2Integer(response, 4);
                 subjects += name;
                 subjects += user;
-                llSay(0, name + " is in range");
+                subjects += locked;
+                subjects += tracking;
+                llOwnerSay(name + " is in range");
             }
         }
     }
 }
-
