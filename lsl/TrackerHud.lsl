@@ -33,7 +33,7 @@ integer longTimer;
 statusDisplay()
 {
     integer l = llGetListLength(subjects) / 4;
-    llOwnerSay("statusDisplay: " + (string)l + " subjects");
+    //llOwnerSay("statusDisplay: " + (string)l + " subjects");
     if (l < 1)
     {
         llSetLinkColor(STATUS_LED, COLOR_GREEN, ALL_SIDES);
@@ -68,8 +68,9 @@ default
         
         // Start out first scan for nearby trackers that belong to us.
         subjects = [];
-        llSay(hudChan, "P:" + (string)llGetOwner());
-        llOwnerSay("Scan");
+        string scanMsg = "P:" + (string)llGetOwner();
+        llSay(hudChan, scanMsg);
+        //llOwnerSay("Scan: " + scanMsg);
         
         // Start the short timer
         longTimer = FALSE;
@@ -78,14 +79,14 @@ default
     
     timer()
     {
-        llOwnerSay("timer");
+        //llOwnerSay("timer");
         if (longTimer)
         {
             // Scan for trackers in range.  We tell trackers our GUID
             // so they can check their owner lists.
             subjects = [];
             llSay(hudChan, "P:" + (string)llGetOwner());
-            llOwnerSay("Scan");
+            //llOwnerSay("Scan");
             
             // Start the short timer
             longTimer = FALSE;
@@ -95,7 +96,7 @@ default
         {
             // Assume all the responses have come in by now.
             // Clean up the list.
-            llOwnerSay("Reap");
+            //llOwnerSay("Reap");
             llListSort(subjects, 4, TRUE);
             statusDisplay();
             
@@ -107,7 +108,7 @@ default
 
     touch_start(integer total_number)
     {
-        llOwnerSay("Touched.");
+        //llOwnerSay("Touched.");
         integer link = llDetectedLinkNumber(0);
         if (link == BUTTON_LOCK)
         {
@@ -176,7 +177,7 @@ default
                 subjects += user;
                 subjects += locked;
                 subjects += tracking;
-                llOwnerSay(name + " is in range");
+                //llOwnerSay(name + " is in range");
             }
         }
     }
