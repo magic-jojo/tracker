@@ -420,20 +420,20 @@ default
             
             // Verify this user is in our owner list.
             key hudUser = llList2Key(packet, 1);
-            llSay(0, "From: " + (string)hudUser);
+            //llSay(0, "From: " + (string)hudUser);
             
             if (llListFindList(owners, [hudUser]) != -1)
             {
-                llSay(0, "My owner HUD said: " + llList2String(packet, 0));
+                //llSay(0, "My owner HUD said: " + llList2String(packet, 0));
                 if (llList2String(packet, 0) == "P")
                 {
                     llSay(hudChan, "U:" + (string)llGetOwner() + ":" + llGetDisplayName(llGetOwner()) + ":1:1");
-                    llSay(0, "pong");
+                    //llSay(0, "pong");
                 }
                 else if (llList2String(packet, 0) == "H")
                 {
                     // This was a broadcast HOME command
-                    llSay(0, "GO HOME");
+                    //llSay(0, "GO HOME");
                     llOwnerSay("@tpto:" + home + "=force");
                 }
                 else if (llList2String(packet, 0) == "L")
@@ -446,7 +446,7 @@ default
                         "{\"avid\":\"" + (string)gWearer + "\"," +
                          "\"cmd\":\"lock\"}");
                     secure(TRUE);
-                    llSay(0, "LOCK");
+                    //llSay(0, "LOCK");
                 }
                 else if (llList2String(packet, 0) == "UL")
                 {
@@ -460,7 +460,7 @@ default
                          "\"cmd\":\"lock\"," +
                          "\"state\":\"false\"}");
                     secure(TRUE);
-                    llSay(0, "UnLOCK");
+                    //llSay(0, "UnLOCK");
                 }
                 else if (llList2String(packet, 0) == "T")
                 {
@@ -473,7 +473,7 @@ default
                          "\"cmd\":\"track\"}");
                     llTriggerSound("Tracking", TRACK_SOUND_VOLUME);
                     secure(TRUE);
-                    llSay(0, "Track");
+                    //llSay(0, "Track");
                 }
                 else if (llList2String(packet, 0) == "UT")
                 {
@@ -487,12 +487,19 @@ default
                          "\"state\":\"false\"}");
                     secure(TRUE);
                     llTriggerSound("Untracking", TRACK_SOUND_VOLUME);
-                    llSay(0, "UnTrack");
+                    //llSay(0, "UnTrack");
                 }
                 else if (llList2String(packet, 0) == "AL")
                 {
                     // This was a broadcast AddLoc command
-                    llSay(0, "AddLoc");
+                    locReq = llHTTPRequest(
+                        "http://magic.softweyr.com/api/tracker/v1",
+                        [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                        "{\"avid\":\"" + (string)gWearer + "\"," +
+                         "\"cmd\":\"addloc\"," +
+                         "\"location\":\"" + llGetRegionName() + "\"}");
+                    secure(TRUE);
+                    //llSay(0, "AddLoc");
                 }
                 else if (llList2String(packet, 0) == "DL")
                 {
@@ -511,14 +518,14 @@ default
                          "\"cmd\":\"lockdown\"}");
                     sentHome = TRUE;
                     secure(TRUE);
-                    llSay(0, "It's the final LOCKDOWN");
+                    //llSay(0, "It's the final LOCKDOWN");
                 }
             }
-            else
-            {
-                llSay(0, "Not the mama");
-                llSay(0, llDumpList2String(owners, ", "));
-            }
+            //else
+            //{
+            //    llSay(0, "Not the mama");
+            //    llSay(0, llDumpList2String(owners, ", "));
+            //}
         }
         else if (chan == dwellChan)
         {
