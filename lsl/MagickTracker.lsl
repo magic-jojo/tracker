@@ -97,6 +97,9 @@ list MENU_RECOVER = ["Hour", "SL Day", "RL Day", "Week"];
 
 // communications channels
 
+integer hudChan = -19351206;
+integer hudHand;
+
 integer menuChan;
 integer menuHand;
 
@@ -195,7 +198,7 @@ secure(integer tx)
         
         if (lockdown)
         {
-            string restrain = "@startim=n,chatshout=ntplocal:0.5=n,tplm=n,tploc=n,tplure_sec=n,sittp:0.5=n,standtp=n";
+            string restrain = "@startim=n,chatshout=n,tplocal:0.5=n,tplm=n,tploc=n,tplure_sec=n,sittp:0.5=n,standtp=n";
             if (sentHome)
             {
                 restrain = restrain + ",tpto:" + home + "=force";
@@ -305,6 +308,8 @@ default
         recoverChan = allowChan - 1;
         passChan = recoverChan - 1;
         
+        hudHand = llListen(hudChan, "", NULL_KEY, "");  // Listen to all HUDs in range
+        
         llSetTouchText("Track");
 
         // Get wearers configuration, update displayname
@@ -408,7 +413,114 @@ default
     
     listen(integer chan, string name, key id, string message)
     {
-        if (chan == dwellChan)
+        if (chan == hudChan)
+        {
+            // Parse the command/query from the HUD
+            list packet = llParseString2List(message, [":"], []);
+            
+            // Verify this user is in our owner list.
+            key hudUser = llList2Key(packet, 1);
+            llSay(0, "From: " + (string)hudUser);
+            
+            if (llListFindList(owners, [hudUser]) != -1)
+            {
+                llSay(0, "My owner HUD said: " + llList2String(packet, 0));
+                if (llList2String(packet, 0) == "P")
+                {
+                    llSay(hudChan, "U:" + (string)llGetOwner() + ":" + llGetDisplayName(llGetOwner()) + ":1:1");
+                    llSay(0, "pong");
+                }
+                else if (llList2String(packet, 0) == "H")
+                {
+                    // This was a broadcast HOME command
+                    llSay(0, "GO HOME");
+                    llOwnerSay("@tpto:" + home + "=force");
+                }
+                else if (llList2String(packet, 0) == "L")
+                {
+                    // This was a broadcast LOCK command
+                    locked = TRUE;
+                    lockReq = llHTTPRequest(
+                        "http://magic.softweyr.com/api/tracker/v1",
+                        [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                        "{\"avid\":\"" + (string)gWearer + "\"," +
+                         "\"cmd\":\"lock\"}");
+                    secure(TRUE);
+                    llSay(0, "LOCK");
+                }
+                else if (llList2String(packet, 0) == "UL")
+                {
+                    // This was a broadcast UnLOCK command
+                    locked = FALSE;
+                    lockdown = FALSE;
+                    lockReq = llHTTPRequest(
+                        "http://magic.softweyr.com/api/tracker/v1",
+                        [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                        "{\"avid\":\"" + (string)gWearer + "\"," +
+                         "\"cmd\":\"lock\"," +
+                         "\"state\":\"false\"}");
+                    secure(TRUE);
+                    llSay(0, "UnLOCK");
+                }
+                else if (llList2String(packet, 0) == "T")
+                {
+                    // This was a broadcast TRACK command
+                    tracking = TRUE;
+                    trackReq = llHTTPRequest(
+                        "http://magic.softweyr.com/api/tracker/v1",
+                        [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                        "{\"avid\":\"" + (string)gWearer + "\"," +
+                         "\"cmd\":\"track\"}");
+                    llTriggerSound("Tracking", TRACK_SOUND_VOLUME);
+                    secure(TRUE);
+                    llSay(0, "Track");
+                }
+                else if (llList2String(packet, 0) == "UT")
+                {
+                    // This was a broadcast UnTRACK command
+                    tracking = FALSE;
+                    trackReq = llHTTPRequest(
+                        "http://magic.softweyr.com/api/tracker/v1",
+                        [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                        "{\"avid\":\"" + (string)gWearer + "\"," +
+                         "\"cmd\":\"track\"," +
+                         "\"state\":\"false\"}");
+                    secure(TRUE);
+                    llTriggerSound("Untracking", TRACK_SOUND_VOLUME);
+                    llSay(0, "UnTrack");
+                }
+                else if (llList2String(packet, 0) == "AL")
+                {
+                    // This was a broadcast AddLoc command
+                    llSay(0, "AddLoc");
+                }
+                else if (llList2String(packet, 0) == "DL")
+                {
+                    // This was a broadcast DelLoc command
+                    llSay(0, "DelLoc");
+                }
+                else if (llList2String(packet, 0) == "LD")
+                {
+                    // This was a broadcast LockDown command
+                    locked = TRUE;          // Lockdown implies lock
+                    lockdown = TRUE;
+                    downReq = llHTTPRequest(
+                        "http://magic.softweyr.com/api/tracker/v1",
+                        [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                        "{\"avid\":\"" + (string)gWearer + "\"," +
+                         "\"cmd\":\"lockdown\"}");
+                    sentHome = TRUE;
+                    secure(TRUE);
+                    llSay(0, "It's the final LOCKDOWN");
+                }
+            }
+            else
+            {
+                llSay(0, "Not the mama");
+                llSay(0, llDumpList2String(owners, ", "));
+            }
+        }
+        else if (chan == dwellChan)
         {
             //llOwnerSay("Sim dwell time: " + message);
 
