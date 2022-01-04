@@ -128,7 +128,7 @@ integer delOwnHand;
 
 integer tpGraceTime = 60;   // Seconds before you get the boot
 integer menuGraceTime = 30; // How long menus wait for a decision
-integer maxOwnerDist = 10;
+integer maxOwnerDist = 64;  // 10 or 20;
 
 // Prims we make GLOW to indicate activity or state,
 // and their relative GLOW states, because colors show
@@ -170,8 +170,8 @@ integer timerRecoverChan;
 
 // Multi-stage data
 
-list ownerList;         // names of pending owners
-list nearbyAvis;        // ids of pending owners
+list avilist;           // strided list used for name menus (ownership)
+
 integer sentHome = FALSE;
 
 integer dwellMinutes;   // per-sim minutes
@@ -504,7 +504,16 @@ default
                 else if (llList2String(packet, 0) == "DL")
                 {
                     // This was a broadcast DelLoc command
-                    llSay(0, "DelLoc");
+                    // This should have the side-effect of sending any unleashed
+                    // wearers home within two minutes.
+                    locReq = llHTTPRequest(
+                        "http://magic.softweyr.com/api/tracker/v1",
+                        [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                        "{\"avid\":\"" + (string)gWearer + "\"," +
+                         "\"cmd\":\"delloc\"," +
+                         "\"location\":\"" + llGetRegionName() + "\"}");
+                    secure(TRUE);
+                    //llSay(0, "DelLoc");
                 }
                 else if (llList2String(packet, 0) == "LD")
                 {
@@ -649,25 +658,23 @@ default
         {
             // llOwnerSay("New owner: " + message);
             
-            // Find the selected name in the name list
-            // This is such a totally fucking stupid way to do this,
-            // why can't dialog at least take a strided list?
+            // Find the selected name in the candidate avi list
             
-            integer i = llListFindList(ownerList, [message]);
+            integer i = llListFindList(avilist, [message]);
             if (i < 0)
             {
                 llOwnerSay("Add Own cancelled");
             }
             else
             {
-                key newOwner = llList2Key(nearbyAvis, i);
-                //llOwnerSay("Owner: " + llList2String(ownerList, i) + " : " + (string)newOwner);
+                // avilist entries: [dist, avi, name]
+                llOwnerSay("Owner: " + llList2String(avilist, i) + " : " + (string)llList2String(avilist, i - 1));
                 ownReq = llHTTPRequest(
                     "http://magic.softweyr.com/api/tracker/v1",
                     [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
                     "{\"avid\":\"" + (string)gWearer + "\"," +
                      "\"cmd\":\"addowner\"," +
-                     "\"owner\":\"" + (string)newOwner + "\"}");
+                     "\"owner\":\"" + (string)llList2String(avilist, i - 1) + "\"}");
                 secure(TRUE);
             }
             llListenRemove(addOwnHand);
@@ -822,14 +829,17 @@ default
             }
             else if (message == "Add Own")
             {
-                // Perms: unlocked or owner
+                // Get nearby avis in this parcel
                 
                 list avis = llGetAgentList(AGENT_LIST_PARCEL_OWNER, []);
                 
                 integer i;
                 integer j;
+                integer l;
                 key o;
 
+                llOwnerSay("Found " + (string)llGetListLength(avis) + " nearby avis");
+                
                 // Remove me from the list
                 i = llListFindList(avis, [llGetOwner()]);
                 if (i != -1) 
@@ -839,27 +849,26 @@ default
                 }
                 
                 // Remove each of my existing owners from the list
-                integer l = llGetListLength(owners);
+                l = llGetListLength(owners);
                 for (i = 0; i < l; i++)
                 {
-                    o = llList2Key(owners, i);
-                    //llOwnerSay("Checking owner [" + (string)i + "]: " + (string)o);
-                    j = llListFindList(avis, [o]);
+                    key owner = llList2Key(owners, i);
+                    j = llListFindList(avis, [owner]);
                     if (j != -1) 
                     {
-                        llOwnerSay("Skipping owner [" + (string)i + "]: " + (string)o + " @ " + (string)j);
+                        llOwnerSay("removing owner: " + (string)owner + " at: " + (string)j);
                         avis = llDeleteSubList(avis, j, j);
                         if (llGetListLength(avis) < 1) { jump purged; }
                     }
                 }
-                
                 @purged;
+                
                 l = llGetListLength(avis);
-                llOwnerSay((string)l + " people in range");
+                llOwnerSay((string)l + " candidates in range");
                 if (l > 0)
                 {
                     vector currentPos = llGetPos();
-                    list avilist;
+                    avilist = [];
                     key avi;
                     integer dist;
      
@@ -869,40 +878,62 @@ default
                         dist = llRound(llVecDist(currentPos,
                                        llList2Vector(llGetObjectDetails(avi, [OBJECT_POS]), 0)));
                         llOwnerSay((string)avi + " @ " + (string)dist + "m");
-                        if (dist <= maxOwnerDist)
-                            avilist += [dist, avi];
+                        if (dist > maxOwnerDist)
+                        {
+                            llOwnerSay("Too far: " + (string)avi);
+                        }
+                        else
+                        {
+                            string name = llGetDisplayName(avi);
+                            if (llStringLength(name) > 0)
+                            {
+                                avilist += [dist, avi, name];
+                            }
+                            else
+                            {
+                                name = llKey2Name(avi);
+                                if (llStringLength(name) > 0)
+                                {
+                                    avilist += [dist, avi, name];
+                                }
+                                else
+                                {
+                                    llOwnerSay((string)avi + " doesn't have a name?");
+                                }
+                            }
+                        }
                     }
+                    @filled;
      
                     //  sort strided list by ascending distance
-                    avilist = llListSort(avilist, 2, TRUE);
+                    avilist = llListSort(avilist, 3, TRUE);
                     
-                    // Add avis to the list, nearest to farthest, stopping at 12.
-                    ownerList = [];
-                    nearbyAvis = [];
-    
-                    integer count = 0;
-                    for (i = 0; i < (l * 2); i += 2)
+                    // Cap the number of names at 12.  Since we have them in distance-sorted
+                    // order, this gets use the CLOSEST 12.
+                    if (llGetListLength(avilist) > 12)
                     {
-                        key avatar = llList2Key(avilist, i+1);
-                        string name = llGetDisplayName(avatar);
-                        integer dist = llList2Integer(avilist, i);
-                        //llOwnerSay(name + " @ " + (string)dist + "m");
-                        ownerList += name;
-                        nearbyAvis += avatar;
-                        count += 1;
-                        if (count == 12) jump maxxedOut;
+                        avilist == llList2List(avilist, 0, 11);
                     }
                     
-                    @maxxedOut;
+                    // Build the owner menu
+                    list ownerNames;
+                    
+                    j = llGetListLength(avilist);
+                    for (i = 0; i < j; i += 3)
+                    {
+                        llOwnerSay((string)llList2Key(avilist, i+1) + 
+                                    " is " + llList2String(avilist, i+2) + 
+                                    " @ " + (string)llList2Integer(avilist, i) + "m");
+                        ownerNames += llList2String(avilist, i+2);
+                    }
+                    
                     addOwnHand = llListen(addOwnChan, "", id, "");
-                    llDialog(id, "Choose new Owner", ownerList, addOwnChan);
+                    llDialog(id, "Choose new Owner", ownerNames, addOwnChan);
                     timerAddOwnChan = llGetUnixTime() + menuGraceTime;
                 }
                 else
                 {
-                    addOwnHand = llListen(addOwnChan, "", id, "");
-                    llDialog(id, "No potential owners in range", [], addOwnChan);
-                    timerAddOwnChan = llGetUnixTime() + menuGraceTime;
+                    llInstantMessage(id, "No potential owners in range");
                 }
             }
             else if (message == "Del Own")
@@ -924,6 +955,17 @@ default
                 dwellHand = llListen(dwellChan, "", id, "");  // Listen only to toucher
                 llDialog(id, "Sim linger time", MENU_LINGER, dwellChan);
                 timerDwellChan = llGetUnixTime() + menuGraceTime;
+            }
+            else if (message == "Del Sim")
+            {
+                // Easy-peasy: delete the sim the wearer is standing in.
+                locReq = llHTTPRequest(
+                    "http://magic.softweyr.com/api/tracker/v1",
+                    [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                    "{\"avid\":\"" + (string)gWearer + "\"," +
+                     "\"cmd\":\"delloc\"," +
+                     "\"location\":\"" + llGetRegionName() + "\"}");
+                secure(TRUE);
             }
             
             llListenRemove(menuHand);
