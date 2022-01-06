@@ -838,7 +838,7 @@ default
                 integer l;
                 key o;
 
-                llOwnerSay("Found " + (string)llGetListLength(avis) + " nearby avis");
+                //llOwnerSay("Found " + (string)llGetListLength(avis) + " nearby avis");
                 
                 // Remove me from the list
                 i = llListFindList(avis, [llGetOwner()]);
@@ -877,7 +877,7 @@ default
                         avi = llList2Key(avis, i);
                         dist = llRound(llVecDist(currentPos,
                                        llList2Vector(llGetObjectDetails(avi, [OBJECT_POS]), 0)));
-                        llOwnerSay((string)avi + " @ " + (string)dist + "m");
+                        //llOwnerSay((string)avi + " @ " + (string)dist + "m");
                         if (dist > maxOwnerDist)
                         {
                             llOwnerSay("Too far: " + (string)avi);
@@ -898,32 +898,34 @@ default
                                 }
                                 else
                                 {
-                                    llOwnerSay((string)avi + " doesn't have a name?");
+                                    llInstantMessage(llGetOwner(), (string)avi + " doesn't have a name?");
                                 }
                             }
                         }
                     }
-                    @filled;
-     
+
                     //  sort strided list by ascending distance
                     avilist = llListSort(avilist, 3, TRUE);
                     
                     // Cap the number of names at 12.  Since we have them in distance-sorted
                     // order, this gets use the CLOSEST 12.
-                    if (llGetListLength(avilist) > 12)
+
+                    j = llGetListLength(avilist);
+                    llInstantMessage(llGetOwner(), "avilist length is: " + (string)l);
+                    if (j > 36)
                     {
-                        avilist == llList2List(avilist, 0, 11);
+                        j = 36;
+                        llInstantMessage(id, "capped avilist at 36/3");
                     }
                     
                     // Build the owner menu
                     list ownerNames;
                     
-                    j = llGetListLength(avilist);
                     for (i = 0; i < j; i += 3)
                     {
-                        llOwnerSay((string)llList2Key(avilist, i+1) + 
-                                    " is " + llList2String(avilist, i+2) + 
-                                    " @ " + (string)llList2Integer(avilist, i) + "m");
+                        //llOwnerSay((string)llList2Key(avilist, i+1) + 
+                        //            " is " + llList2String(avilist, i+2) + 
+                        //            " @ " + (string)llList2Integer(avilist, i) + "m");
                         ownerNames += llList2String(avilist, i+2);
                     }
                     
