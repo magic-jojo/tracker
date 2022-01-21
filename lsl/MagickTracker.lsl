@@ -14,6 +14,7 @@ key regReq;
 key nameReq;
 key travReq;
 key passReq;
+key penalReq;
 
 // The poor sap who has this locked to them
 key gWearer;
@@ -29,6 +30,7 @@ list locations;
 list owners;
 integer travel;
 integer recover;
+integer penalty;
 
 // Associated with owners, but seperate since LSL makes it SUCH a PITA
 // to get the names of avis unless they are nearby.
@@ -43,7 +45,7 @@ integer ownCount;
 list MENU_OWNER = ["TP Home", "Add Sim", "Del Sim", 
                    "Lock", "Add Own", "Del Own", 
                    "Track", "Travel Time", "Set Home",
-                   "Web", "LockDown" ];
+                   "Web", "Penalty", "LockDown" ];
 
 // Customize the owner menu for the current state
 // Do it the safe way.
@@ -115,6 +117,9 @@ integer allowHand;
 integer passChan;
 integer passHand;
 
+integer penalChan;
+integer penalHand;
+
 integer recoverChan;
 integer recoverHand;
 
@@ -134,10 +139,12 @@ integer maxOwnerDist = 64;  // 10 or 20;
 // and their relative GLOW states, because colors show
 // glow differently.
 
-integer PRIM_ANTENNA = 6;
-integer PRIM_GREEN_LED = 5;
-integer PRIM_RED_LED = 2;
-integer PRIM_YELLOW_LED = 3; // Not currently used
+integer PRIM_CASE = 1;  // Also the root
+integer PRIM_BAND = 2;
+integer PRIM_GREEN_LED = 3;
+integer PRIM_RED_LED = 4;  // Red=LockDown, Yellow=Locked
+integer PRIM_YELLOW_LED = 99; // Not currently used
+integer PRIM_ANTENNA = 5;
 
 float GLOW_ANTENNA = 1.0;
 float GLOW_GREEN = 0.65;
@@ -167,6 +174,7 @@ integer timerPerChan;
 integer timerAllowChan;
 integer timerPassChan;
 integer timerRecoverChan;
+integer timerPenalChan;
 
 // Multi-stage data
 
@@ -186,6 +194,15 @@ string BoolOf(integer val)
 
 // RLV-secure the device, or remove any restrictions set.
 // These need to be paired, so keep them together here.
+// Keep track of changes, for audible alerts
+
+integer wasLocked;
+integer wasTracking;
+
+// Tri-state logic.  Sometimes when we call secure() we don't know
+// if we're on the air or not!
+
+integer MAYBE = 42;
 
 secure(integer tx)
 {
@@ -196,7 +213,7 @@ secure(integer tx)
         // Check lockdown first for our shortcut to 
         // removing restrictions.
         
-        if (lockdown)
+        if (lockdown || (penalty > 0))
         {
             string restrain = "@startim=n,chatshout=n,tplocal:0.5=n,tplm=n,tploc=n,tplure_sec=n,sittp:0.5=n,standtp=n";
             if (sentHome)
@@ -212,7 +229,8 @@ secure(integer tx)
                 key o = llList2Key(owners, i);
                 restrain = restrain + ",tplure:" + (string)o + "=add";
             }
-            llInstantMessage(llGetOwner(), "lockdown! " + restrain);
+            if (lockdown) { llInstantMessage(llGetOwner(), "lockdown! " + restrain); }
+            else if (penalty > 0) { llInstantMessage(llGetOwner(), "penalty! " + restrain); }
             llOwnerSay(restrain);
         }
         else
@@ -223,27 +241,36 @@ secure(integer tx)
         // (Re)-lock as needed
         
         string restrain = "@detach=n,permissive=n,editobj:" + (string)llGetLinkKey(1) + "=n";
-        llInstantMessage(llGetOwner(), "locked: " + restrain);
+        //llInstantMessage(llGetOwner(), "locked: " + restrain);
         llOwnerSay(restrain);
-        llTriggerSound("Locking", LOCK_SOUND_VOLUME);
+        if (!wasLocked)
+        {
+            llTriggerSound("Locking", LOCK_SOUND_VOLUME);
+            wasLocked = locked;
+        }
     }
     else
     {
         llOwnerSay("@clear");
-        llTriggerSound("Unlocking", LOCK_SOUND_VOLUME);
+        if (wasLocked)
+        {
+            llTriggerSound("Unlocking", LOCK_SOUND_VOLUME);
+            wasLocked = locked;
+        }
     }
     
     // On/off air status
-    if (tx)
+    if (tx == TRUE)
     {
-        llInstantMessage(llGetOwner(), "tx");
+        //llInstantMessage(llGetOwner(), "tx");
         llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
     }
-    else
+    else if (tx == FALSE)
     {
-        llInstantMessage(llGetOwner(), "rx");
+        //llInstantMessage(llGetOwner(), "rx");
         llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_OFF]);
     }
+    // If it's MAYBE, leave it the hell alone!
 
     // Set the LEDs as needed
     if (locked)
@@ -307,7 +334,8 @@ default
         allowChan = perChan -1;
         recoverChan = allowChan - 1;
         passChan = recoverChan - 1;
-        
+        penalChan = passChan - 1;
+                
         hudHand = llListen(hudChan, "", NULL_KEY, "");  // Listen to all HUDs in range
         
         llSetTouchText("Track");
@@ -331,6 +359,9 @@ default
         timerAllowChan = 0;
         timerPassChan = 0;
         timerRecoverChan = 0;
+        
+        wasLocked = locked;
+        wasTracking = tracking;
         
         llSetTimerEvent(1.0);
     }
@@ -605,6 +636,19 @@ default
             secure(TRUE);
             llListenRemove(passHand);
         }
+        else if (chan == penalChan)
+        {
+            // This is the wearers (new) penalty time
+            integer pt = (integer)message;
+            penalReq = llHTTPRequest(
+                "http://magic.softweyr.com/api/tracker/v1",
+                [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                "{\"avid\":\"" + (string)id + "\"," +
+                 "\"cmd\":\"penalty\"," +
+                 "\"mins\":\"" + (string)pt + "\"}");
+            secure(TRUE);
+            llListenRemove(penalHand);
+        }
         else if (chan == allowChan)
         {
             //llOwnerSay("Travel time: " + message);
@@ -731,9 +775,17 @@ default
             else if (message == "Web")
             {
                 // Set a password for the owner for the web app.
-                allowHand = llListen(passChan, "", id, "");  // Listen only to toucher
+                passHand = llListen(passChan, "", id, "");  // Listen only to toucher
                 llTextBox(id, "Enter your new password:", passChan);
                 timerPassChan = llGetUnixTime() + menuGraceTime;
+                // Server call after second dialog
+            }
+            else if (message == "Penalty")
+            {
+                // Specify the wearer's penalty time.
+                penalHand = llListen(penalChan, "", id, "");  // Listen only to toucher
+                llTextBox(id, "Enter your new password:", penalChan);
+                timerPenalChan = llGetUnixTime() + menuGraceTime;
                 // Server call after second dialog
             }
             else if (message == "Travel Time")
@@ -1028,15 +1080,39 @@ default
                  "\"cmd\":\"get\"}");
             llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);
         }
+        else
+        {
+            // We are configured, and this is a regular timer tick.
+            // If we are still in penalty, decrement the penalty.
+            if (penalty > 0) 
+            { 
+                penalty -= 1;
+                if (penalty == 0)
+                {
+                    secure(MAYBE);
+                }
+            }
+        }
         
         // Check to see if any timers have expired.
         if (timerTP != 0 && timerTP < now)
         {
             llInstantMessage(llGetOwner(), "Timed out, sending you home");
             llOwnerSay("@tpto:" + home + "=force");
+            
             // Bump the timer in case the tp failed, so we keep trying.
             // A TP to a permitted sim will disable the timer.
             timerTP += tpGraceTime;
+            
+            // (Re)Set the penalty timer on each try, last write is the 
+            // one that actually worked in the case of leashes and cages
+            // and such
+            penalReq = llHTTPRequest(
+                "http://magic.softweyr.com/api/tracker/v1",
+                [ HTTP_METHOD, "POST", HTTP_MIMETYPE, "application/json" ],
+                "{\"avid\":\"" + (string)gWearer + "\"," +
+                 "\"cmd\":\"penal\"}");
+            llSetLinkPrimitiveParamsFast(PRIM_ANTENNA, [PRIM_GLOW, ALL_SIDES, GLOW_ANTENNA]);            
         }
         if (timerMenuChan != 0 && timerMenuChan < now)
         {
@@ -1072,6 +1148,11 @@ default
         {
             llListenRemove(passHand);
             timerPassChan = 0;
+        }
+        if (timerPenalChan != 0 && timerPenalChan < now)
+        {
+            llListenRemove(penalHand);
+            timerPenalChan = 0;
         }
         if (timerRecoverChan != 0 && timerRecoverChan < now)
         {
@@ -1199,6 +1280,15 @@ default
             // This was a lock/unlock, lockdown/release or track/untrack request
             llOwnerSay("trackReq: " + body);
         }
+        else if (id == penalReq)
+        {
+            // We actually need the penalty minutes out of the reply
+            llOwnerSay(body);
+
+            // The server tells us penalty in minutes, but our timer tick is seconds
+            penalty = (integer)llJsonGetValue(body, ["penalty"]);
+            penalty *= 60;
+        }
         else if (id == configReq)
         {
             llOwnerSay(body);
@@ -1246,6 +1336,10 @@ default
 
             recover = (integer)llJsonGetValue(body, ["recover"]);
             //llOwnerSay("recover: " + (string)recover);
+            
+            // The server tells us penalty in minutes, but our timer tick is seconds
+            penalty = (integer)llJsonGetValue(body, ["penalty"]);
+            penalty *= 60;
             
             string ownStr = (string)llJsonGetValue(body, ["owners"]);
             list ownlist = llParseString2List(ownStr, ["[", "]", "\"", ","], [""]);

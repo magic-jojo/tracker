@@ -198,6 +198,9 @@ The primary table holds all the singular configuration items:
 		recover 	INTEGER NOT NULL DEFAULT 0,
 		expires 	DATETIME WITHOUT TIMEZONE NOT NULL DEFAULT now(),
 		recovers 	DATETIME WITHOUT TIMEZONE NOT NULL DEFAULT now(),
+		-- configure & record penalty box time
+		penalty		INTEGER NOT NULL DEFAULT 0,
+		release		DATETIME WITHOUT TIMEZONE NOT NULL DEFAULT now(),
 		home VARCHAR(1024)
 	);
 

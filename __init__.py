@@ -80,6 +80,9 @@ def api():
       print(f"arrive said: {ret}")
       return ret
 
+    elif content['cmd'] == 'penal':
+      return penal(content['avid'])
+    
     elif content['cmd'] == 'travel':
       return travel(content['avid'])
     
@@ -138,6 +141,11 @@ def api():
       else:
         return settravel(content['avid'], content['away'])
     
+    elif content['cmd'] == 'penalty':
+      if not 'mins' in content:
+        return 'Penalty mins not specified', 501
+      return penalty(content['avid'], content['mins'])
+
     elif content['cmd'] == 'sethome':
       # Somewhat different, we pass the home as a string
       if not 'home' in content:
@@ -270,6 +278,37 @@ def arrive(avid, landing):
         return {avid: True}
   except Exception as e:
     print(f"Cunt! {e}") 
+    return str(e), 500
+
+
+# Closely associated with arrive is penalize:
+# If the wearer gets sent home, this notifies the system the penalty
+# time has started.  Eventually we will allow owners to set  various
+# penalties: including tp blocking, startim limitations, possibly even
+# vision, hearing and speech penalties, or mouselook.
+# 
+# Operationally, we call this every time we attempt to TP the wearer
+# home.  Last write wins, so the one that was successful will define
+# the penalty period.
+
+@app.route('/penal/<avid>', methods = ['POST'])
+def penal(avid):
+  app.logger.info(f"travel({avid})")
+  print(f"travel({avid})")
+
+  try:
+    with connect(dbname='tracker', user='jojo') as conn:
+      with conn.cursor() as cursor:
+        cursor.execute('SELECT penalty FROM users WHERE avid = %s', [avid,])
+        row = cursor.fetchone()
+        penalty = int(row[0])
+        if penalty > 0:
+          release = pendulum.now().add(minutes = penalty).naive()
+          cursor.execute('UPDATE users SET release = %s WHERE avid = %s', 
+          [release, avid])
+        return {'avid': avid, 'penalty': penalty}  # So tracker knows we're in penalty
+  except Exception as e:
+    print(f"Merde! {e}") 
     return str(e), 500
 
 
@@ -438,6 +477,23 @@ def settravel(avid, away=0, recover=0):
     print(f"Sharks! {e}") 
     return str(e), 500
 
+# Set the minutes in the penalty box for this wearer
+
+@app.route('/penalty/<avid>/<mins>', methods = ['POST'])
+def penalty(avid, mins):
+  app.logger.info(f"penalty({avid}, {mins})")
+  print(f"penalty({avid}, {mins}")
+
+  mn = int(mins)
+
+  try:
+    with connect(dbname='tracker', user='jojo') as conn:
+      with conn.cursor() as cursor:
+        cursor.execute('UPDATE users SET penalty = %s WHERE avid = %s', [mn, avid])
+        return {avid: mn}
+  except Exception as e:
+    print(f"Salmon! {e}") 
+    return str(e), 500
 
 # Add and delete owner return the full owners list
 # so the script can be certain it has the right list.
@@ -578,7 +634,7 @@ def get(avid, dn = None):
   try:
     with connect(dbname='tracker', user='jojo') as conn:
       with conn.cursor() as cursor:
-        cursor.execute('SELECT locked, tracking, lockdown, travel, recover, home FROM users WHERE avid = %s', [avid, ])
+        cursor.execute('SELECT locked, tracking, lockdown, travel, recover, home, release FROM users WHERE avid = %s', [avid, ])
         rows = cursor.fetchone()
         # print(rows)
         if rows:
@@ -590,6 +646,14 @@ def get(avid, dn = None):
                     'home': rows[5],
                     'owners': [],
                     'locations': []}
+
+          release = pendulum.instance(rows[6], 'local')
+          now = pendulum.now()
+          if release > now:
+            result['penalty'] = (release - now).in_minutes()
+          else:
+            result['penalty'] = 0
+
           cursor.execute('SELECT owner FROM owners WHERE avid = %s', [avid, ])
           row2 = cursor.fetchall()
           # print(row2)
