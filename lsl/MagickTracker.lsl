@@ -147,13 +147,15 @@ integer PRIM_YELLOW_LED = 99; // Not currently used
 integer PRIM_ANTENNA = 5;
 
 float GLOW_ANTENNA = 1.0;
-float GLOW_GREEN = 0.65;
+float GLOW_GREEN = 0.50;
 float GLOW_RED = 0.90;
 float GLOW_YELLOW = 0.65;
+float GLOW_ORANGE = 0.55;
 float GLOW_OFF = 0.0;
 
 vector COLOR_RED = <1.000, 0.255, 0.212>;
-vector COLOR_YELLOW = <1.000, 0.863, 0.000>;
+vector COLOR_YELLOW = <0.865, 0.863, 0.000>;
+vector COLOR_ORANGE = <0.865, 0.420, 0.000>;
 
 float BELL_SOUND_VOLUME = 1.0;
 float LOCK_SOUND_VOLUME = 1.0;
@@ -279,6 +281,11 @@ secure(integer tx)
         {
             llSetLinkColor(PRIM_RED_LED, COLOR_RED, ALL_SIDES);
             llSetLinkPrimitiveParamsFast(PRIM_RED_LED, [PRIM_GLOW, ALL_SIDES, GLOW_RED]);
+        }
+        else if (penalty > 0)
+        {
+            llSetLinkColor(PRIM_RED_LED, COLOR_ORANGE, ALL_SIDES);
+            llSetLinkPrimitiveParamsFast(PRIM_RED_LED, [PRIM_GLOW, ALL_SIDES, GLOW_ORANGE]);
         }
         else
         {
